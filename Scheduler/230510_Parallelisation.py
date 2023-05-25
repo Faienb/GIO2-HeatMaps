@@ -27,23 +27,24 @@ RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
                       "port_rec":5556,
                       "port_send":5561,
                       "status":True,
-                      "byteName":b'topicb'},
+                      "byteName":b'topica'},
         "ecg-rpi-03":{"ip":"192.168.16.19",
                    "hostname":"ecg-rpi-03",
                       "port_rec":5556,
                       "port_send":5562,
                       "status":True,
-                      "byteName":b'topicc'},
+                      "byteName":b'topica'},
         "ecg-rpi-04":{"ip":"192.168.16.20",
                    "hostname":"ecg-rpi-04",
                       "port_rec":5556,
                       "port_send":5563,
                       "status":True,
-                      "byteName":b'topicd'}}
+                      "byteName":b'topica'}}
 
 #Niveau maximal de zoom
 Zmax = 18
 #Declaration des parametres de base du calcul
+#Chemin relatif du dossier des tuiles en fonction de l'emplacement du script python
 ParentFolder = "../Tuiles/"
 #Calcul sur toute la suisse
 LatMinDeg = 45.80000
@@ -114,7 +115,9 @@ def threadSendRPIs():
     #Creation du socket
     socket = SendContext.socket(zmq.PUB) # Création du socket en mode Publisher
     socket.bind("tcp://*:5556") # On accepte toutes les connexions sur le port 5556
-
+    
+    socket.send_multipart([b'topica',pickle.dumps({"X":False,"Y":False})])
+    
     CheckSendingForBreak = True
     TaskCompleted = False
     counterTasks = 0
@@ -128,15 +131,10 @@ def threadSendRPIs():
                         if not JobsFirstGen[key2]["status"] :
                             print("Sending task : id={:s} X={:d}, Y={:d}".format(JobsFirstGen[key2]["task"],JobsFirstGen[key2]["X"],JobsFirstGen[key2]["Y"]))
                             #Envoi de la tache
-                            '''
-                            Regler le probleme du topic proprement
-                            Integrer des controles de la bonne recepetion de la task
-                            '''
                             topic = RPIs[key]["byteName"]
-                            topic = b'topica'
                             socket.send_multipart([topic,pickle.dumps(JobsFirstGen[key2])])
                             #Changement de statut du RPI
-                            RPIs[key]["status"] = False
+                            # RPIs[key]["status"] = False
                             #Changement de statut de la tache envoyee
                             JobsFirstGen[key2]["status"] = True
                             CheckSendingForBreak = False
