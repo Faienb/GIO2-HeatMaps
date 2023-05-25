@@ -1,21 +1,13 @@
 #Import des librairies
 from numpy import array
 import math
-import os
+import os #Creation de dossiers
 import threading
-import zmq
+import zmq #Communication reseau via PUB SUB / PUSH PULL
 import time
-import pickle
+import pickle #Conversion bytes2utf-8
 #Librairie de coloration syntaxique dans la console
 from colorama import Fore,Style
-
-
-#Lien pour le cote subscriber du publish du premier thread
-#https://stackoverflow.com/questions/33159395/how-to-add-topic-filters-when-calling-recv-pyobj-in-zeromq
-
-#==========
-#Temporaire
-#==========
 
 #Initialisation de l'objet verrou
 global lock
@@ -67,18 +59,23 @@ class RPI():
         self.receiverRPI = self.contextRPI.socket(zmq.PULL) # Création du socket en mode Pull
         self.receiverRPI.bind("tcp://*:{:d}".format(self.port_send)) # Choix du port
     def listenForPullRequests(self):
-        print(Fore.RED + Style.BRIGHT + "Waiting for processed data of task 1 from RPI {:s}".format(self.hostName) + Fore.RESET)
+        with lock :
+            print(Fore.RED + Style.BRIGHT + "Waiting for processed data of task 1 from RPI {:s}".format(self.hostName) + Fore.RESET)
         #lorsque toutes les taches sont terminees on vient update en dehors le cont pour interrompre la boucle
         while self.cont :
-            print(Fore.RED + Style.BRIGHT + "Waiting for computed Raster of RPI {:s}".format(self.hostName) + Fore.RESET)
+            with lock :
+                print(Fore.RED + Style.BRIGHT + "Waiting for computed Raster of RPI {:s}".format(self.hostName) + Fore.RESET)
             #A definir ce qu'il y a dans le multipart
             [flag,msg] = self.receiverRPI.recv_multipart()
             msgReceived = pickle.loads(msg)
             #Recuperation de la tuile Raster
             Rasterdata = msgReceived["data"]
-            
+            taskId = msgReceived["task"]
+            X = msgReceived["X"]
+            Y = msgReceived["Y"]
             #Il va falloir y mettre un lock pour l'update des deux dicos cas ou deux taches finissent en meme temps
             with lock :
+                print(Fore.RED + Style.BRIGHT + "Task id={:s} X={:d}, Y={:d} receive from RPI {:s}".format(taskId,X,Y,self.hostName) + Fore.RESET)
                 JobsFirstGen["data"] = Rasterdata
                 #update du statut de la tuile
                 #Peut etre y ajouter un controle ici avant
@@ -92,9 +89,9 @@ class RPI():
 for key,data in RPIs.items():
     data.update({"PullObject":RPI(data)})
 
+#Declaration des parametres de base du calcul
 #Niveau maximal de zoom
 Zmax = 17
-#Declaration des parametres de base du calcul
 #Chemin relatif du dossier des tuiles en fonction de l'emplacement du script python
 ParentFolder = "../Tuiles/"
 #Calcul sur toute la suisse
@@ -157,8 +154,9 @@ TuileXY_Zmax, JobsFirstGen = generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, Lon
     #if False : a faire
     #if True : en cours ou termine
 def threadSendRPIs():
-    print(Fore.GREEN + Style.BRIGHT + "Starting Task 1" + Fore.RESET)
-    print(Fore.GREEN + Style.BRIGHT + "Sending data for computation of the minimum level tiles" + Fore.RESET)
+    with lock :
+        print(Fore.GREEN + Style.BRIGHT + "Starting Task 1" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Sending data for computation of the minimum level tiles" + Fore.RESET)
     #Creation du contexte zmq pour le publisher
     SendContext = zmq.Context()
     #Creation du socket
@@ -176,10 +174,12 @@ def threadSendRPIs():
         for key in RPIs.keys():
             if CheckSendingForBreak :
                 if RPIs[key]["status"] :
-                    print(Fore.GREEN + Style.BRIGHT + "{:s} is free".format(RPIs[key]["hostname"]) + Fore.RESET)
+                    with lock :
+                        print(Fore.GREEN + Style.BRIGHT + "{:s} is free".format(RPIs[key]["hostname"]) + Fore.RESET)
                     for key2 in JobsFirstGen.keys():
                         if not JobsFirstGen[key2]["status"] :
-                            print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:s} X={:d}, Y={:d}".format(JobsFirstGen[key2]["task"],JobsFirstGen[key2]["X"],JobsFirstGen[key2]["Y"]) + Fore.RESET)
+                            with lock :
+                                print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:s} X={:d}, Y={:d}".format(JobsFirstGen[key2]["task"],JobsFirstGen[key2]["X"],JobsFirstGen[key2]["Y"]) + Fore.RESET)
                             #Envoi de la tache
                             topic = RPIs[key]["byteName"]
                             socket.send_multipart([topic,pickle.dumps(JobsFirstGen[key2])])
@@ -195,7 +195,8 @@ def threadSendRPIs():
                         else :
                             counterTasks += 1
                             if counterTasks == len(JobsFirstGen):
-                                print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
+                                with lock :
+                                    print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
                                 TaskCompleted = True
 
             #Ce break la s'opere si une tache a ete envoyee
@@ -204,31 +205,41 @@ def threadSendRPIs():
                 break
                         
         time.sleep(1.0)
-    print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
-    print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
-    print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
-    
+    with lock :
+        print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
+        
 
 #Fonction de controle de la recuperation des heatmap Raster
 def threadControlTask1():
     statusTask1 = False
-    print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 1 reception" + Fore.RESET)
+    with lock :
+        print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 1 reception" + Fore.RESET)
     while not statusTask1 :
         lstCompletion = []
         for key,data in JobsFirstGen.items():
             lstCompletion.append(data["completion"])
         
         if False in lstCompletion :
-            print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
+            with lock :
+                print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
         else :
-            print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 1" + Fore.RESET)
+            with lock :
+                print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 1" + Fore.RESET)
             statusTask1 = True
             #Interruption de toutes les requetes Pull sur les RPIs
             for key,data in RPIs.items():
                 data["PullObject"].cont = False
-        
-        print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 5 seconds" + Fore.RESET)
+        with lock :
+            print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 5 seconds" + Fore.RESET)
         time.sleep(5.0)
+    with lock :
+        print(Fore.MAGENTA + Style.BRIGHT + "Control of task 1 finished, all tasks completed" + Fore.RESET)
+
+#Fonction de generation des taches pour le tuilage
+def generateTasksForTiling():
+    pass
 
 #Fonction d'envoi des 4 heatmap pour le tuilage
 
@@ -240,9 +251,11 @@ def threadControlTask1():
 def createZoomLevelFolders(ParentFolder, Z):
     if not os.path.exists(ParentFolder+str(Z)):
         os.mkdir(ParentFolder+str(Z))
-        print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} created".format(Z) + Fore.RESET)
-    else : 
-        print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} already exists".format(Z) + Fore.RESET)
+        with lock :
+            print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} created".format(Z) + Fore.RESET)
+    else :
+        with lock :
+            print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} already exists".format(Z) + Fore.RESET)
 
 
 #Fonction générale du Scheduler tuilage
