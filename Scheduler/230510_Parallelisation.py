@@ -17,32 +17,12 @@ from colorama import Fore,Style
 #Temporaire
 #==========
 
-#Creation de la classe des RPIs
-#Initialisation de la classe RPI
-class RPI():
-    def __init__(self, RPIline) :
-        self.cont = True
-        self.hostName = RPIline["hostname"]
-        self.ip = RPIline["ip"]
-        self.port_rec = RPIline["port_rec"]
-        self.port_send = RPIline["port_send"]
-        self.status = RPIline["status"]
-        self.byteName = RPIline["byteName"]
-    def createPullContext(self):
-        self.contextRPI = zmq.Context()
-        self.receiverRPI = self.contextRPI.socket(zmq.PULL) # Création du socket en mode Pull
-        self.receiverRPI.bind("tcp://*:{:d}".format(self.port_send)) # Choix du port
-    def listenForPullRequests(self):
-        print(Fore.RED + Style.BRIGHT + "Waiting for processed data of task 1 from RPI {:s}".format(self.hostName) + Fore.RESET)
-        #lorsque toutes les taches sont terminees on vient update en dehors le cont pour interrompre la boucle
-        while self.cont :
-            #A definir ce qu'il y a dans le multipart
-            [flag,msg] = self.receiverRPI.recv_multipart()
-            self.msgReceived = pickle.loads(msg)
-            #La il va falloire mettre a jour le dictionnaire du job
-            #Il va aussi falloir dire que le RPI est libre
-            #La boucle revient attende a la ligne 40
-            #Il va falloir y mettre un lock pour l'update des deux dicos cas ou deux taches finissent en meme temps
+#Initialisation de l'objet verrou
+global lock
+lock = threading.RLock()
+
+#initialisation de la liste des jobs de premiere generation
+global JobsFirstGen
 
 #Creation du dictionnaire des clients
 global RPIs
@@ -71,6 +51,43 @@ RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
                       "status":True,
                       "byteName":b'topicd'}}
 
+#Creation de la classe des RPIs
+#Initialisation de la classe RPI
+class RPI():
+    def __init__(self, RPIline) :
+        self.cont = True
+        self.hostName = RPIline["hostname"]
+        self.ip = RPIline["ip"]
+        self.port_rec = RPIline["port_rec"]
+        self.port_send = RPIline["port_send"]
+        self.status = RPIline["status"]
+        self.byteName = RPIline["byteName"]
+    def createPullContext(self):
+        self.contextRPI = zmq.Context()
+        self.receiverRPI = self.contextRPI.socket(zmq.PULL) # Création du socket en mode Pull
+        self.receiverRPI.bind("tcp://*:{:d}".format(self.port_send)) # Choix du port
+    def listenForPullRequests(self):
+        print(Fore.RED + Style.BRIGHT + "Waiting for processed data of task 1 from RPI {:s}".format(self.hostName) + Fore.RESET)
+        #lorsque toutes les taches sont terminees on vient update en dehors le cont pour interrompre la boucle
+        while self.cont :
+            print(Fore.RED + Style.BRIGHT + "Waiting for computed Raster of RPI {:s}".format(self.hostName) + Fore.RESET)
+            #A definir ce qu'il y a dans le multipart
+            [flag,msg] = self.receiverRPI.recv_multipart()
+            msgReceived = pickle.loads(msg)
+            #Recuperation de la tuile Raster
+            Rasterdata = msgReceived["data"]
+            
+            #Il va falloir y mettre un lock pour l'update des deux dicos cas ou deux taches finissent en meme temps
+            with lock :
+                JobsFirstGen["data"] = Rasterdata
+                #update du statut de la tuile
+                #Peut etre y ajouter un controle ici avant
+                #Si tuile pas correct remettre le status en False
+                JobsFirstGen["status"] = True
+                JobsFirstGen["completion"] = True
+                RPIs[self.hostName]["status"] = True
+            
+            
 #Iteration sur les clients pour creer un objet PULL dans la donnee de chaque ligne
 for key,data in RPIs.items():
     data.update({"PullObject":RPI(data)})
@@ -128,13 +145,11 @@ def generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax) :
         for j in range(Ymin,Ymax+1):
             TuileXY_Zmax.append([i,j])
             #Le status nous indique si False que la tache n'est pas faite
-            JobsFirstGen.update({JobId:{"Z":1,"X":i,"Y":j,"task":str(JobId),"status":False,"data":False}})
+            JobsFirstGen.update({JobId:{"Z":1,"X":i,"Y":j,"task":str(JobId),"status":False,"completion":False,"data":False}})
             JobId += 1
     return TuileXY_Zmax,JobsFirstGen
-    
-    
+
 #Liste des jobs de la premiere generation de travaux
-global JobsFirstGen
 TuileXY_Zmax, JobsFirstGen = generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax)
 
 #Fonction d'envoi des données de bounding box aux RPI's
@@ -168,11 +183,12 @@ def threadSendRPIs():
                             #Envoi de la tache
                             topic = RPIs[key]["byteName"]
                             socket.send_multipart([topic,pickle.dumps(JobsFirstGen[key2])])
-                            #Changement de statut du RPI
-                            RPIs[key]["status"] = False
-                            #Changement de statut de la tache envoyee
-                            JobsFirstGen[key2]["status"] = True
-                            CheckSendingForBreak = False
+                            with lock :
+                                #Changement de statut du RPI
+                                RPIs[key]["status"] = False
+                                #Changement de statut de la tache envoyee
+                                JobsFirstGen[key2]["status"] = True
+                                CheckSendingForBreak = False
                             break
                         #Compteur a chaque iteration de recherche de tache
                         #Pous savoir si toutes les taches ont ete faites
@@ -193,24 +209,26 @@ def threadSendRPIs():
     print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
     
 
-#Fonction de récupération des Heatmap Raster
-#On va supprimer 4a et mettre directement dans la classe RPI
-def threadGetBackFromRPIs():
-    print(Fore.RED + Style.BRIGHT + "Waiting for processed data of task 1" + Fore.RESET)
-    #Ouverture des 4 contextes en mode PULL
-    #Objets stockes dans le dict RPIs
-    for key,data in RPIs.items():
-        data["PullObject"].createPullContext()
-            
-    #Initialisation des variables
-    global ReceivingCompleted
-    ReceivingCompleted = False 
-    #Initialisation de la boucle d'ecoute des RPIs
-    while not ReceivingCompleted :
-        print(Fore.RED + Style.BRIGHT + "Starting to listen to PUSH requests of RPIs" + Fore.RESET)
-        ReceivingCompleted = True
-
-    print(Fore.RED + Style.BRIGHT + "All tasks of generation 1 have been executed successfully" + Fore.RESET)
+#Fonction de controle de la recuperation des heatmap Raster
+def threadControlTask1():
+    statusTask1 = False
+    print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 1 reception" + Fore.RESET)
+    while not statusTask1 :
+        lstCompletion = []
+        for key,data in JobsFirstGen.items():
+            lstCompletion.append(data["completion"])
+        
+        if False in lstCompletion :
+            print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
+        else :
+            print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 1" + Fore.RESET)
+            statusTask1 = True
+            #Interruption de toutes les requetes Pull sur les RPIs
+            for key,data in RPIs.items():
+                data["PullObject"].cont = False
+        
+        print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 5 seconds" + Fore.RESET)
+        time.sleep(5.0)
 
 #Fonction d'envoi des 4 heatmap pour le tuilage
 
@@ -225,29 +243,27 @@ def createZoomLevelFolders(ParentFolder, Z):
         print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} created".format(Z) + Fore.RESET)
     else : 
         print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} already exists".format(Z) + Fore.RESET)
-            
-for i in range(8,Zmax+1):
-    createZoomLevelFolders(ParentFolder, i)
 
-#Fonction générale du Scheduler Bounding Box
 
 #Fonction générale du Scheduler tuilage
 
 #Processus complet
 #Start des thread sending et receiving
-# thread1 = threading.Thread(target=threadSendRPIs)
-# thread1.start()
+thread1 = threading.Thread(target=threadSendRPIs)
+thread1.start()
+thread2 = threading.Thread(target=threadControlTask1)
+thread2.start()
 
-#Ici on va creer un thread par RPI pour l'ecoute
-#Comme ca chacun attend une reponse de son RPI
+RPIsThreads = []
 
-# a = threadGetBackFromRPIs()
+for key,data in RPIs.items():
+    data["PullObject"].createPullContext()
+    RPIsThreads.append(threading.Thread(target=data["PullObject"].listenForPullRequests))
+ 
+#Creation des threads Pull RPIs
+for i in RPIsThreads :
+    i.start()    
 
-
-#Schema
-#Creation de la liste de job
-#envoi bbox lat lon min lat lon max
-#Reception array 256x256
-#Envoi 4 array + bbox
-#Reception 1 array +bbox
-#Sequencage par niveau de zoom
+#Creation des dossiers des tuiles
+for i in range(8,Zmax+1):
+    createZoomLevelFolders(ParentFolder, i)
