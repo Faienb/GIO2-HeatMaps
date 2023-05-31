@@ -15,6 +15,8 @@ lock = threading.RLock()
 
 #initialisation de la liste des jobs de premiere generation
 global JobsFirstGen
+global TaskCompleted
+
 
 #Creation du dictionnaire des clients
 global RPIs
@@ -66,8 +68,8 @@ class RPI():
             with lock :
                 print(Fore.RED + Style.BRIGHT + "Waiting for computed Raster of RPI {:s}".format(self.hostName) + Fore.RESET)
             #A definir ce qu'il y a dans le multipart
-            [flag,msg] = self.receiverRPI.recv_multipart()
-            msgReceived = pickle.loads(msg)
+            msg = self.receiverRPI.recv_pyobj()
+            msgReceived = msg
             #Recuperation de la tuile Raster
             Rasterdata = msgReceived["data"]
             taskId = msgReceived["task"]
@@ -105,6 +107,12 @@ LatMinDeg = 45.90386
 LonMinDeg =  7.11991
 LatMaxDeg = 46.39470
 LonMaxDeg = 7.49827
+
+#Calcul sur le Valais central 
+LatMinDeg = 45.90386
+LonMinDeg =  7.11991
+LatMaxDeg = 46.000
+LonMaxDeg = 7.21
 
 #Fonction pour calculer dpeuis une latitude et une longitude le numero X et Y de la tuile
 #C'est un standard OGC
@@ -162,11 +170,9 @@ def threadSendRPIs():
     #Creation du socket
     socket = SendContext.socket(zmq.PUB) # Création du socket en mode Publisher
     socket.bind("tcp://*:5556") # On accepte toutes les connexions sur le port 5556
-    
-    socket.send_multipart([b'topica',pickle.dumps({"X":False,"Y":False})])
-    
+    print(Fore.GREEN + Style.BRIGHT + "Initializing socket" + Fore.RESET)
+    time.sleep(2.0)
     CheckSendingForBreak = True
-    global TaskCompleted
     TaskCompleted = False
     counterTasks = 0
     while not TaskCompleted :
@@ -204,7 +210,7 @@ def threadSendRPIs():
             else :
                 break
                         
-        time.sleep(1.0)
+        time.sleep(0.2)
     with lock :
         print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
         print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
@@ -217,11 +223,13 @@ def threadControlTask1():
     with lock :
         print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 1 reception" + Fore.RESET)
     while not statusTask1 :
-        lstCompletion = []
+        findNotFinishedTask = True
         for key,data in JobsFirstGen.items():
-            lstCompletion.append(data["completion"])
+            if not data['completion'] :
+                findNotFinishedTask = False
+                break
         
-        if False in lstCompletion :
+        if not findNotFinishedTask :
             with lock :
                 print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
         else :
@@ -233,7 +241,7 @@ def threadControlTask1():
                 data["PullObject"].cont = False
         with lock :
             print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 5 seconds" + Fore.RESET)
-        time.sleep(5.0)
+        time.sleep(1.0)
     with lock :
         print(Fore.MAGENTA + Style.BRIGHT + "Control of task 1 finished, all tasks completed" + Fore.RESET)
 
