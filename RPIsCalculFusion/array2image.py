@@ -133,6 +133,6 @@ def create_image_from_array(array, color):
     image_create = Image.fromarray(color_image)
     return image_create, color_image
 
-im,array_img= create_image_from_array(tuile, 'r')
-image.show()
-im.show()
+# im,array_img= create_image_from_array(tuile, 'r')
+# image.show()
+# im.show()

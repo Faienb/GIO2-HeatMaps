@@ -8,15 +8,28 @@ import zmq
 import time
 import numpy as np
 import PIL
+import pickle
+
 ip="127.0.0.1"
 hostname="ecg-rpi-02"
 port_rec="5556"
 port_send="5555"
 
+# Requete de recepetion du serveru PULL
 context = zmq.Context()
-socket = context.socket(zmq.REQ) # Création du socket en mode Publisher
-socket.connect ("tcp://10.192.91.138:5555") # On accepte toutes les connexions sur le port 5555
+receiver = context.socket(zmq.PULL) # Création du socket en mode Publisher
+receiver.bind("tcp://*:"+port_rec) # On accepte toutes les connexions sur le port 5556
+# while True:
+#     json_receiv=receiver.recv_pyobj()
+#     print(json_receiv)
+#     pass
 
+
+# Requete d'envoi du serveur PUB
+context = zmq.Context()
+socket = context.socket(zmq.PUB) # Création du socket en mode Publisher
+socket.bind("tcp://*:"+port_send) # On accepte toutes les connexions sur le port 5556
+    
 def random_array(size, scale):
         tuile_array = np.ones(shape=(size,size))
         for i in range(size):
@@ -24,7 +37,7 @@ def random_array(size, scale):
                 tuile_array[i][j]=np.abs(np.round(np.random.normal(loc=0.0, scale=scale, size=None)))
         return tuile_array
 
-# while True:
+
 for request in range(10):
       # syntaxe : topic_name message
     dict_send =  {
@@ -39,10 +52,8 @@ for request in range(10):
     }
     
     print(f"Sending request {request} …")
-    socket.send_pyobj(dict_send)
+    socket.send_multipart([b"ecg-rpi-02", pickle.dumps(dict_send)]) 
     
-    message = socket.recv_pyobj()
-    print(f"Received reply {request} [ {message} ]")
     
     time.sleep(1)
 
