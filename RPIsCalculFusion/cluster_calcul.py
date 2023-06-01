@@ -10,7 +10,8 @@ import skimage
 import pickle
 import socket
 myip=socket.gethostbyname(socket.gethostname())
-myhostname=socket.gethostname()
+# myhostname=socket.gethostname()
+myhostname="ecg-rpi-02"
 ipserveur="127.0.0.1"
 port_rec="5555"
 port_send="5556"
@@ -29,7 +30,7 @@ socket.subscribe(myhostname)
 # # # Connexion au serveur
 # sender.connect("tcp://"+ipserveur+":"+port_send) # changer ici localhost pour l'IP de votre machine
 
-# # # Envoyer l'adresse IP du rapsberry ou hostname
+# # Envoyer l'adresse IP du rapsberry ou hostname
 # sender.send_pyobj(({"IP": "salut", "Hostname": "hostname"}))
 
 
@@ -44,34 +45,47 @@ socket.subscribe(myhostname)
 
 
 # FONCTION DE CREATION DES TUILES 
-def tuile_create_elisa():
+def tuile_create_elisa(json_recv):
     print("tuile créée")
     element_send = {
-        "z" : 1,
-        "x" : 151616,
-        "y": 15161,
+        "Z" : json_recv['Z'],
+        "X" : json_recv['X'],
+        "Y": json_recv['Y'],
+        "status" : json_recv['status'],
+        "completion" : json_recv['completion'],
         "task" : 0,
-        "host" : myhostname,
-        "ip" : myip,
         "tuile_array" : [
-            [0,1,2,3],
-            [1,2,3,4],
-            [1,2,3,4],
-            [1,2,3,4]
             ]
     }
     return element_send
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # FONCTION DE CREATION DES TUILES 
+# ========================================================================
 def fusion_tuile_bruno(json_recv):
     element_send = {
-        "z" : json_recv['z'],
-        "x" : json_recv['x'],
-        "y": json_recv['y'],
+        "Z" : json_recv['Z'],
+        "X" : json_recv['X'],
+        "Y": json_recv['Y'],
+        "status" : json_recv['status'],
+        "completion" : json_recv['completion'],
         "task" : json_recv['task'],
-        "host" : myhostname,
-        "ip" : myip,
         "tuile_array" : [
             ]
     }
@@ -80,8 +94,18 @@ def fusion_tuile_bruno(json_recv):
     ar2=np.concatenate((json_recv['tuile_array3'], json_recv['tuile_array4']), axis=1)
     array_fus=np.concatenate((ar1, ar2), axis=0)
     
+    
+    array_reduced=np.zeros(shape=(256,256))
+    
     # Création d'une somme de array
-    array_reduced = skimage.measure.block_reduce(array_fus, (2,2), np.sum)
+    for i in range(256):
+        for j in range(256):
+            x1y1=array_fus[j+j,i+i]
+            x2y1=array_fus[j+j,i+i+1]
+            x1y2=array_fus[j+j+1,i+i]
+            x2y2=array_fus[j+j+1,i+i+1]
+            array_reduced[j,i]=x1y1+x2y1+x2y2+x1y2
+
     # Enregistrement du array dans le dictionnaire de livraison
     element_send["tuile_array"]=array_reduced
     

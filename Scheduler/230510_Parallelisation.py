@@ -1,5 +1,5 @@
 #Import des librairies
-from numpy import array
+import numpy as np
 import math
 import os #Creation de dossiers
 import threading
@@ -26,8 +26,8 @@ RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
                       "port_send":5560,
                       "status":True,
                       "byteName":b'topica'},
-        "ecg-rpi-02":{"ip":"192.168.16.18",
-                   "hostname":"ecg-rpi-02",
+        "ecg-rpi-06":{"ip":"192.168.16.18",
+                   "hostname":"ecg-rpi-06",
                       "port_rec":5556,
                       "port_send":5561,
                       "status":True,
@@ -72,19 +72,28 @@ class RPI():
             msgReceived = msg
             #Recuperation de la tuile Raster
             Rasterdata = msgReceived["data"]
-            taskId = msgReceived["task"]
+            task = msgReceived["task"]
             X = msgReceived["X"]
             Y = msgReceived["Y"]
             #Il va falloir y mettre un lock pour l'update des deux dicos cas ou deux taches finissent en meme temps
             with lock :
-                print(Fore.RED + Style.BRIGHT + "Task id={:s} X={:d}, Y={:d} receive from RPI {:s}".format(taskId,X,Y,self.hostName) + Fore.RESET)
-                JobsFirstGen["data"] = Rasterdata
-                #update du statut de la tuile
-                #Peut etre y ajouter un controle ici avant
-                #Si tuile pas correct remettre le status en False
-                JobsFirstGen["status"] = True
-                JobsFirstGen["completion"] = True
-                RPIs[self.hostName]["status"] = True
+                print(Fore.RED + Style.BRIGHT + "X={:d}, Y={:d} receive from RPI {:s}".format(X,Y,self.hostName) + Fore.RESET)
+                if task == 0 :
+                    JobsFirstGen["data"] = Rasterdata
+                    #update du statut de la tuile
+                    #Peut etre y ajouter un controle ici avant
+                    #Si tuile pas correct remettre le status en False
+                    JobsFirstGen["status"] = True
+                    JobsFirstGen["completion"] = True
+                    RPIs[self.hostName]["status"] = True
+                else :
+                    JobsSecondGen["tuile_array"] = Rasterdata
+                    #update du statut de la tuile
+                    #Peut etre y ajouter un controle ici avant
+                    #Si tuile pas correct remettre le status en False
+                    JobsSecondGen["status"] = True
+                    JobsSecondGen["completion"] = True
+                    RPIs[self.hostName]["status"] = True
             
             
 #Iteration sur les clients pour creer un objet PULL dans la donnee de chaque ligne
@@ -150,18 +159,20 @@ def generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax) :
         for j in range(Ymin,Ymax+1):
             TuileXY_Zmax.append([i,j])
             #Le status nous indique si False que la tache n'est pas faite
-            JobsFirstGen.update({JobId:{"Z":1,"X":i,"Y":j,"task":str(JobId),"status":False,"completion":False,"data":False}})
+            JobsFirstGen.update({JobId:{"Z":1,"X":i,"Y":j,"task":0,"status":False,"completion":False,"data":False}})
             JobId += 1
     return TuileXY_Zmax,JobsFirstGen
 
 #Liste des jobs de la premiere generation de travaux
 TuileXY_Zmax, JobsFirstGen = generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax)
 
+
+            
 #Fonction d'envoi des données de bounding box aux RPI's
 #Status in JobsFirsGen :
     #if False : a faire
     #if True : en cours ou termine
-def threadSendRPIs():
+def threadSendRPIs1():
     with lock :
         print(Fore.GREEN + Style.BRIGHT + "Starting Task 1" + Fore.RESET)
         print(Fore.GREEN + Style.BRIGHT + "Sending data for computation of the minimum level tiles" + Fore.RESET)
@@ -185,7 +196,7 @@ def threadSendRPIs():
                     for key2 in JobsFirstGen.keys():
                         if not JobsFirstGen[key2]["status"] :
                             with lock :
-                                print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:s} X={:d}, Y={:d}".format(JobsFirstGen[key2]["task"],JobsFirstGen[key2]["X"],JobsFirstGen[key2]["Y"]) + Fore.RESET)
+                                print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:d} X={:d}, Y={:d}".format(key2,JobsFirstGen[key2]["X"],JobsFirstGen[key2]["Y"]) + Fore.RESET)
                             #Envoi de la tache
                             topic = RPIs[key]["byteName"]
                             socket.send_multipart([topic,pickle.dumps(JobsFirstGen[key2])])
@@ -210,7 +221,7 @@ def threadSendRPIs():
             else :
                 break
                         
-        time.sleep(0.2)
+        time.sleep(1.0)
     with lock :
         print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
         print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
@@ -244,14 +255,13 @@ def threadControlTask1():
         time.sleep(1.0)
     with lock :
         print(Fore.MAGENTA + Style.BRIGHT + "Control of task 1 finished, all tasks completed" + Fore.RESET)
+    
+    
 
 #Fonction de generation des taches pour le tuilage
 def generateTasksForTiling():
     pass
 
-#Fonction d'envoi des 4 heatmap pour le tuilage
-
-#Fonction de réception des tuiles
 
 #Fonction de gestion des niveaux de zoom pour l'envoi et la réception des heatmap (tuilage)
 
@@ -270,7 +280,7 @@ def createZoomLevelFolders(ParentFolder, Z):
 
 #Processus complet
 #Start des thread sending et receiving
-thread1 = threading.Thread(target=threadSendRPIs)
+thread1 = threading.Thread(target=threadSendRPIs1)
 thread1.start()
 thread2 = threading.Thread(target=threadControlTask1)
 thread2.start()
@@ -283,8 +293,152 @@ for key,data in RPIs.items():
  
 #Creation des threads Pull RPIs
 for i in RPIsThreads :
-    i.start()    
+    i.start()  
+     
+#==========================================================================================
+#Task 2
+#==========================================================================================
+     
+#Recuperation de la matrice des tasks 2
+def getTask2(JobsFirsGen):
+    Xmin = JobsFirsGen[1]["X"]
+    Ymin = JobsFirsGen[1]["Y"]
+    Xmax = JobsFirsGen[len(JobsFirsGen)]["X"]
+    Ymax = JobsFirsGen[len(JobsFirsGen)]["Y"]
+    lenX = Xmax-Xmin
+    lenY = Ymax-Ymin
+    lenX2 = lenX + lenX%2
+    lenY2 = lenY + lenY%2
+    ArrayofTiles = np.zeros(shape=(lenY2,lenX2))
+    Tiles = {}
+    for key,data in JobsFirsGen.items():
+        Tiles.update({(data["X"],data["Y"]):key})
+    
+    
+    for i in range(lenX2) :
+        for j in range(lenY2) :
+            if i+1 > lenX or j+1 > lenY :
+                ArrayofTiles[j][i] = 0
+            else :
+                ArrayofTiles[j][i] = Tiles[(Xmin+i,Ymin+j)]
+    
+    JobsSecondGen = {}
+    counter =  1
+    for i in range(int(lenX2/2)):
+        for j in range(int(lenY2/2)):
+            t1 = ArrayofTiles[2*j][2*i]
+            t = [ArrayofTiles[2*j][2*i],ArrayofTiles[2*j][2*i+1],ArrayofTiles[2*j+1][2*i],ArrayofTiles[2*j+1][2*i+1]]
+            tuiles = []
+            i = 0
+            for j in t :
+                if j == 0 :
+                    tuiles.append(np.zeros(shape=(256,256)))
+                else :
+                    tuiles.append(JobsFirsGen[j]["data"])
+                i += 1
+            JobsSecondGen.update({counter:{"Z":Zmax-1,"X":JobsFirsGen[t1]["X"],"Y":JobsFirsGen[t1]["Y"],"task":1,"tuile_array1":tuiles[0],"tuile_array2":tuiles[1],"tuile_array3":tuiles[2],"tuile_array4":tuiles[3],"status":False,"completion":False}})
+            counter += 1
+    return JobsSecondGen
+ 
 
 #Creation des dossiers des tuiles
 for i in range(8,Zmax+1):
-    createZoomLevelFolders(ParentFolder, i)
+    createZoomLevelFolders(ParentFolder, i)  
+JobsSecondGen = getTask2(JobsFirstGen)
+
+#Fonction d'envoi des 4 heatmap pour le tuilage
+#Fonction d'envoi des données de bounding box aux RPI's
+#Status in JobsFirsGen :
+    #if False : a faire
+    #if True : en cours ou termine
+def threadSendRPIs2():
+    with lock :
+        print(Fore.GREEN + Style.BRIGHT + "Starting Task 2" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Sending data for computation of the fusion of tiles" + Fore.RESET)
+    #Creation du contexte zmq pour le publisher
+    SendContext = zmq.Context()
+    #Creation du socket
+    socket = SendContext.socket(zmq.PUB) # Création du socket en mode Publisher
+    socket.bind("tcp://*:5556") # On accepte toutes les connexions sur le port 5556
+    print(Fore.GREEN + Style.BRIGHT + "Initializing socket" + Fore.RESET)
+    time.sleep(2.0)
+    CheckSendingForBreak = True
+    TaskCompleted = False
+    counterTasks = 0
+    while not TaskCompleted :
+        CheckSendingForBreak = True
+        for key in RPIs.keys():
+            if CheckSendingForBreak :
+                if RPIs[key]["status"] :
+                    with lock :
+                        print(Fore.GREEN + Style.BRIGHT + "{:s} is free".format(RPIs[key]["hostname"]) + Fore.RESET)
+                    for key2 in JobsSecondGen.keys():
+                        if not JobsSecondGen[key2]["status"] :
+                            with lock :
+                                print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:s} X={:d}, Y={:d}".format(JobsSecondGen[key2]["task"],JobsSecondGen[key2]["X"],JobsSecondGen[key2]["Y"]) + Fore.RESET)
+                            #Envoi de la tache
+                            topic = RPIs[key]["byteName"]
+                            socket.send_multipart([topic,pickle.dumps(JobsSecondGen[key2])])
+                            with lock :
+                                #Changement de statut du RPI
+                                RPIs[key]["status"] = False
+                                #Changement de statut de la tache envoyee
+                                JobsSecondGen[key2]["status"] = True
+                                CheckSendingForBreak = False
+                            break
+                        #Compteur a chaque iteration de recherche de tache
+                        #Pous savoir si toutes les taches ont ete faites
+                        else :
+                            counterTasks += 1
+                            if counterTasks == len(JobsSecondGen):
+                                with lock :
+                                    print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 2 are sent or done !" + Fore.RESET)
+                                TaskCompleted = True
+
+            #Ce break la s'opere si une tache a ete envoyee
+            #Pour que la boucle de controle des RPI reparte a zero a chaque envoi de tache
+            else :
+                break
+                        
+        time.sleep(1.0)
+    with lock :
+        print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 2 are sent or done !" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
+      
+#Fonction de réception des tuiles
+def threadControlTask2():
+    statusTask1 = False
+    with lock :
+        print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 2 reception" + Fore.RESET)
+    while not statusTask1 :
+        findNotFinishedTask = True
+        for key,data in JobsSecondGen.items():
+            if not data['completion'] :
+                findNotFinishedTask = False
+                break
+        
+        if not findNotFinishedTask :
+            with lock :
+                print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
+        else :
+            with lock :
+                print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 1" + Fore.RESET)
+            statusTask1 = True
+            #Interruption de toutes les requetes Pull sur les RPIs
+            for key,data in RPIs.items():
+                data["PullObject"].cont = False
+        with lock :
+            print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 5 seconds" + Fore.RESET)
+        time.sleep(1.0)
+    with lock :
+        print(Fore.MAGENTA + Style.BRIGHT + "Control of task 2 finished, all tasks completed" + Fore.RESET)
+
+while thread2.is_alive() :
+    time.sleep(5.0)
+    
+thread3 = threading.Thread(target=threadSendRPIs2)
+thread3.start()
+thread4 = threading.Thread(target=threadControlTask2)
+thread4.start()
+

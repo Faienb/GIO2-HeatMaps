@@ -36,9 +36,9 @@ def random_array(size, scale):
             for j in range(size):
                 tuile_array[i][j]=np.abs(np.round(np.random.normal(loc=0.0, scale=scale, size=None)))
         return tuile_array
-
-
-for request in range(10):
+request=0
+while True:
+# for request in range(10):
       # syntaxe : topic_name message
     dict_send =  {
         "z" : 1,
@@ -52,8 +52,8 @@ for request in range(10):
     }
     
     print(f"Sending request {request} …")
-    socket.send_multipart([b"ecg-rpi-02", pickle.dumps(dict_send)]) 
+    socket.send_multipart([b"ecg-rpi-02", pickle.dumps(dict_send)])
     
-    
+    request+=1
     time.sleep(1)
 

@@ -119,9 +119,13 @@ def create_image_from_array(array, color):
     """
     color_image = np.zeros(shape=(256,256,4), dtype="uint8")
     
+    # calcul du facteur de la couleur maximum
+    mean = np.mean(array)
+    maxi= np.max(array)
+
     for i in range(array.shape[0]) :
         for j in range(array.shape[1]):
-            color_rgba=generate_color_rgba_from_nbre(array[i][j],80, color)
+            color_rgba=generate_color_rgba_from_nbre(array[i][j],maxi, color)
             
             
             color_image[i][j][0]=color_rgba[0]
@@ -133,6 +137,6 @@ def create_image_from_array(array, color):
     image_create = Image.fromarray(color_image)
     return image_create, color_image
 
-# im,array_img= create_image_from_array(tuile, 'r')
-# image.show()
-# im.show()
+im,array_img= create_image_from_array(tuile, 'r')
+image.show()
+im.show()
