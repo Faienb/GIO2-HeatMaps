@@ -1,42 +1,21 @@
 import requests
 import osmnx as ox
-import pyproj
 from pyproj import Transformer
 from bs4 import BeautifulSoup
 import polyline
 import numpy as np
-import math
-import rasterio
-import geopandas as gpd
-import os
-import matplotlib.pyplot as plt
-from rasterio import features
-from rasterio.enums import MergeAlg
-from rasterio.plot import show
-from numpy import int16
 import rasterize as rz
 
 bbox_lon_min = 5.40
 bbox_lat_min = 45.40
-bbox_lon_max = 5.60
-bbox_lat_max = 45.60
+bbox_lon_max = 5.50
+bbox_lat_max = 45.50
 
-options = {'utagawavtt':False,
-           'tracegps':False,
-           'openstreetmap':False,
-           'camptocamp':False,
-           'openrunner':False}
-
-  
-def num2deg(x_tile, y_tile, zoom):
-    """
-    return the NW-corner of the tile, Use x_tile+1, y_tile+1 to get the other corners
-    """
-    n = 2.0 ** zoom
-    lon_deg = x_tile / n * 360.0 - 180.0
-    lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y_tile / n)))
-    lat_deg = math.degrees(lat_rad)
-    return lat_deg, lon_deg
+options = {'utagawavtt':'t',
+           'tracegps':'t',
+           'openstreetmap':'t',
+           'camptocamp':'',
+           'openrunner':''}
 
 def get_track_in_bbox_Utagawavtt(lon_min, lat_min, lon_max, lat_max):
     page = 0
@@ -65,7 +44,7 @@ def get_one_track_Utagawavtt(id_track):
         # Attention : forcé l'écriture en encodage utf-8
         with open('gpx//utagawavtt-{}.gpx'.format(id_track),'w',encoding="utf-8") as f :
             f.write(rep.text)
-            print('Save file gpx//utagawavtt-{}.gpx'.format(id_track))
+            # print('Save file gpx//utagawavtt-{}.gpx'.format(id_track))
     else:
         # Afficher un message d'erreur si la requête a échoué
         print("La requête GET a échoué.")
@@ -76,7 +55,7 @@ def get_one_track_Tracegps(id_track):
     rep = requests.get(url)
     with open('gpx//tracegps-{}.gpx'.format(id_track),'w', encoding="utf-8") as f :
         f.write(rep.text)
-        print('Save file gpx//tracegps-{}.gpx'.format(id_track))
+        # print('Save file gpx//tracegps-{}.gpx'.format(id_track))
         
 def get_idtrack(rep):
     idtracks = []
@@ -156,18 +135,10 @@ def get_track_in_bbox_Oppenrunner(lat_min, lon_min, lat_max, lon_max):
     out = rep.json()
     print(out)
 
-# FONCTION POUR RENDU RASTER "HEAT MAP"
-
-bbox_lon_min = 5.40
-bbox_lat_min = 45.40
-bbox_lon_max = 5.60
-bbox_lat_max = 45.60
-
-
-if __name__ == "__main__":
+def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options):
     
     #-----UTAGAWAVTT-----
-    if options['utagawavtt']:
+    if options['utagawavtt'] == "t":
         
         '''
         Site : https://www.utagawavtt.com/search?city=&w=[-7.65747,41.50034,10.82154,51.35119]&q=[1,2,3,4]&k=0&l=all&u=1&aa=25
@@ -176,12 +147,12 @@ if __name__ == "__main__":
         A partir des identifiants de la liste des tracks : récupération de la réponse txt au format gpx
         --> gpx
         '''
-        # res_utawaga = get_track_in_bbox_Utagawavtt(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-        # for i,r in enumerate(res_utawaga) :
-        #     get_one_track_Utagawavtt(r['tid'])
+        res_utawaga = get_track_in_bbox_Utagawavtt(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
+        for i,r in enumerate(res_utawaga) :
+            get_one_track_Utagawavtt(r['tid'])
         
     #-----TRACE GPS-----
-    if options['tracegps']:
+    if options['tracegps'] == "t":
         '''
         Site : https://www.utagawavtt.com/search?city=&w=[-7.65747,41.50034,10.82154,51.35119]&q=[1,2,3,4]&k=0&l=all&u=1&aa=25
         Utilise Beautifulsoup pour chercher les identifiants des traces directement dans la page html
@@ -189,12 +160,12 @@ if __name__ == "__main__":
         Pas de données en Suisse
         --> gpx
         '''
-        # lst_idtracks = get_track_near_point_Tracegps(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-        # for i in lst_idtracks : 
-        #     get_one_track_Tracegps(i)
+        lst_idtracks = get_track_near_point_Tracegps(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
+        for i in lst_idtracks : 
+            get_one_track_Tracegps(i)
         
     #-----OPENSTREETMAP-----
-    if options['openstreetmap']:
+    if options['openstreetmap'] == "t":
         '''
         Site : https://www.utagawavtt.com/search?city=&w=[-7.65747,41.50034,10.82154,51.35119]&q=[1,2,3,4]&k=0&l=all&u=1&aa=25
         Utilise l'api d'openstreet map
@@ -209,7 +180,7 @@ if __name__ == "__main__":
     
     
     #-----CAMPTOCAMP----
-    if options['camptocamp']:
+    if options['camptocamp'] == "t":
         '''
         --> json
         '''
@@ -220,15 +191,12 @@ if __name__ == "__main__":
         GoogleMercatortoWGS84 = Transformer.from_crs(3857,4326)
         # lat,lon = GoogleMercatortoWGS84.transform(bbox_E_max,bbox_N_min)
         get_track_in_bbox_Camptocamp(bbox_E_min,bbox_N_min,bbox_E_max,bbox_N_max)
-        
-
     
     #-----OPENRUNNER----
-    if options['openrunner']:
+    if options['openrunner'] == "t":
     
         get_track_in_bbox_Oppenrunner(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_lon_max)
         polyline.decode('u{~vFvyys@fS]')
-    
     
     #-----BIKINISPOT----
     
@@ -243,23 +211,22 @@ if __name__ == "__main__":
     #         try:
     #             urlretrieve(url_gpx+tr['file'], file_name)
     
+    
+    # ---- GPX ----
+    gpx_folder_path = 'gpx'
+    gpx_files = rz.get_file_names(gpx_folder_path)
+    
+    # ---- GPKG ----
+    gpkg_file = "gpkg\\dataframe.gpkg"
+    
+    # ---- GEOJSON ----
+    geojson_folder_path = 'json'
+    geojson_files = rz.get_file_names(geojson_folder_path)
+    
+    # ---- Rasterize ----
+    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
+        
+    return raster_array
 
-
-# ---- GPX ----
-gpx_folder_path = 'gpx'
-gpx_files = rz.get_file_names(gpx_folder_path)
-
-# ---- GPKG ----
-gpkg_file = "gpkg\\dataframe.gpkg"
-
-# ---- GEOJSON ----
-geojson_folder_path = 'json'
-geojson_files = rz.get_file_names(geojson_folder_path)
-
-
-# ---- Rasterize ----
-rz.rasterize(gpx_files, gpkg_file, geojson_files,'raster_total_rasterio.tif')
-
-
-# numpy_array = gdal_to_numpy(out_raster_ds)
-# print(numpy_array.shape)
+raster_array = task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options)
+    
