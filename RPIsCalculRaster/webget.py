@@ -220,6 +220,7 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
             get_one_track_Tracegps(i)
         
     #-----OPENSTREETMAP-----
+    pass_openstreet_map = False
     if options['openstreetmap'] == "t":
     #     '''
     #     Utilise l'api d'openstreet map
