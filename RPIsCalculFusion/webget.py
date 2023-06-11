@@ -1,3 +1,4 @@
+import urllib.request
 import requests
 import osmnx as ox
 from pyproj import Transformer
@@ -5,17 +6,34 @@ from bs4 import BeautifulSoup
 import polyline
 import numpy as np
 import rasterize as rz
+import os
+import json
 
-bbox_lon_min = 5.40
-bbox_lat_min = 45.40
-bbox_lon_max = 5.50
-bbox_lat_max = 45.50
+#Librairie de coloration syntaxique dans la console
+from colorama import Fore,Style
+
+# bbox_lon_min = 5.40
+# bbox_lat_min = 45.40
+# bbox_lon_max = 5.50
+# bbox_lat_max = 45.50
+
+bbox_lon_min = 7.40
+bbox_lat_min = 46.40
+bbox_lon_max = 8.50
+bbox_lat_max = 47.50
+
+# bbox_lon_min = 7.40
+# bbox_lat_min = 50.40
+# bbox_lon_max = 7.50
+# bbox_lat_max = 50.50
 
 options = {'utagawavtt':'t',
            'tracegps':'t',
            'openstreetmap':'t',
+           'bikingspots':'t',
            'camptocamp':'',
-           'openrunner':''}
+           'openrunner':'',
+           'komoot':''}
 
 def get_track_in_bbox_Utagawavtt(lon_min, lat_min, lon_max, lat_max):
     page = 0
@@ -29,7 +47,7 @@ def get_track_in_bbox_Utagawavtt(lon_min, lat_min, lon_max, lat_max):
         page = out['resultsMeta']['pager']['next']
         if page == 0:
             break
-    print('Utagawavtt : {} tracks have been detected in bbox'.format(len(lst_track)))
+    print(Fore.RED + Style.BRIGHT +'Utagawavtt : {} tracks have been detected in bbox'.format(len(lst_track)) + Fore.RESET)
     return lst_track
 
 def get_one_track_Utagawavtt(id_track):
@@ -76,19 +94,22 @@ def get_track_near_point_Tracegps(lon_min, lat_min, lon_max, lat_max):
     lst_idtrack = []
     grid_lon = np.arange(lon_min,lon_max,0.1)
     grid_lat = np.arange(lat_min,lat_max,0.1)
+    
     for lon in grid_lon : 
         for lat in grid_lat : 
-            print(f"Réponse tracegps avec lon = {lon} et lat = {lat}")
+            #print(f"Réponse tracegps avec lon = {lon} et lat = {lat}")
             url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}"
             rep = requests.get(url)
             idtracks = get_idtrack(rep)
-            print(f"les traces suivantes ont été détectées : {idtracks}")
+            #print(f"les traces suivantes ont été détectées : {idtracks}")
             for t in idtracks : 
                 if t is lst_idtrack :
-                    print(f"trace {t} existe déjà")
+                    pass
+                    #print(f"trace {t} existe déjà")
                 elif t not in lst_idtrack : 
                     lst_idtrack.append(t)
-                    print(f"trace {t} ajoutée à la liste des traces")
+                    #print(f"trace {t} ajoutée à la liste des traces")
+    print(Fore.RED + Style.BRIGHT +'Tracegps : {} tracks have been detected in bbox'.format(len(lst_idtrack)) + Fore.RESET)
     return lst_idtrack
         
 def get_track_in_bbox_Camptocamp(E_min, N_min, E_max, N_max):
@@ -134,6 +155,31 @@ def get_track_in_bbox_Oppenrunner(lat_min, lon_min, lat_max, lon_max):
     rep = requests.get(url)
     out = rep.json()
     print(out)
+    
+def get_track_in_bbox_Bikingspots(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_lon_max) :
+        
+    url = "https://www.bikingspots.ch/leaflet/searchForLeaflet.php?type=&area=&search=&deniv=&dist=&diff="
+    #https://www.bikingspots.ch/createGPXFile.php?filename=bikingspots4b0413f11e3b4.xml
+    response = urllib.request.urlopen(url)
+    data = json.loads(response.read())
+    count = 0 
+    for tr in data['result']:
+        file = tr['file']
+        lat = float(tr['latitude'])
+        lon = float(tr['longitude'])
+        if lat > bbox_lat_min and lat < bbox_lat_max and lon > bbox_lon_min and lon < bbox_lon_max : 
+            count += 1
+            file_name = os.path.join('gpx',file.replace('.xml','.gpx'))
+            print('File name :' + file_name)
+    
+            url_gpx = 'https://www.bikingspots.ch/createGPXFile.php?filename='
+    
+            if ' ' in file :
+                print('Error')
+            else :
+                urllib.request.urlretrieve(url_gpx+file, file_name)
+                print(f"Téléchargement réussi : {file_name}")
+    print(Fore.RED + Style.BRIGHT + 'Bikingspots : {} tracks have been detected in bbox.'.format(count) + Fore.RESET)
 
 def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options):
     
@@ -167,17 +213,25 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
     #-----OPENSTREETMAP-----
     if options['openstreetmap'] == "t":
         '''
-        Site : https://www.utagawavtt.com/search?city=&w=[-7.65747,41.50034,10.82154,51.35119]&q=[1,2,3,4]&k=0&l=all&u=1&aa=25
         Utilise l'api d'openstreet map
         --> gpkg
         '''
         # north, south, east, west
         gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
-        gdf.plot()
+        #gdf.plot()
+        print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
     
         del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
         gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
-    
+        
+    #-----KOMOOT-----
+    if options['komoot'] == "t":
+        '''
+        URl : https://api.komoot.de/v007/discover_tours/?lat=46.7669&lng=6.6334&max_distance=30000.0&sport=mtb&limit=100&page=0
+        Utilise l'api de komoot
+        --> json
+        '''
+
     
     #-----CAMPTOCAMP----
     if options['camptocamp'] == "t":
@@ -198,19 +252,14 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
         get_track_in_bbox_Oppenrunner(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_lon_max)
         polyline.decode('u{~vFvyys@fS]')
     
-    #-----BIKINISPOT----
+    #-----BIKINGSPOT----
     
-    # url = "https://www.bikingspots.ch/leaflet/searchForLeaflet.php?type=&area=&search=&deniv=&dist=&diff="
-    # response = urlopen(url)
-    # data = json.loads(response.read())
-    # print(data['success'])
-    # for tr in data['result']:
-    #     file_name = os.path.join('bikingspots',tr['file'].replace('.xml','.gpx'))
-    #     print(file_name)
-    #     if not os.path.isfile(file_name):
-    #         try:
-    #             urlretrieve(url_gpx+tr['file'], file_name)
-    
+    if options['bikingspots'] == "t":
+        '''
+        --> gpx
+        '''
+        get_track_in_bbox_Bikingspots(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_lon_max)
+          
     
     # ---- GPX ----
     gpx_folder_path = 'gpx'
@@ -225,8 +274,16 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
     
     # ---- Rasterize ----
     raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
+    
+    # Clear file
+    for filename in os.listdir(gpx_folder_path) :
+        os.remove(gpx_folder_path + '\\' + filename)
+    os.remove(gpkg_file)
+        
+    
+ 
         
     return raster_array
 
-raster_array = task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options)
+
     

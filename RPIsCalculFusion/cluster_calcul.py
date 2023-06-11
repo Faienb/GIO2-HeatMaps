@@ -9,6 +9,10 @@ import numpy as np
 import skimage
 import pickle
 import socket
+import math
+
+import webget as webget
+
 myip=socket.gethostbyname(socket.gethostname())
 # myhostname=socket.gethostname()
 myhostname="ecg-rpi-02"
@@ -40,9 +44,15 @@ socket.subscribe(myhostname)
 # Création d'un fonction qui envoie l'adresse IP et le HOSTNAME au serveur
 # ========================================================================
 
-
-
-
+def num2deg(x_tile, y_tile, zoom):
+    """
+    return the NW-corner of the tile, Use x_tile+1, y_tile+1 to get the other corners
+    """
+    n = 2.0 ** zoom
+    lon_deg = x_tile / n * 360.0 - 180.0
+    lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y_tile / n)))
+    lat_deg = math.degrees(lat_rad)
+    return lat_deg, lon_deg
 
 # FONCTION DE CREATION DES TUILES 
 def tuile_create_elisa(json_recv):
@@ -57,6 +67,21 @@ def tuile_create_elisa(json_recv):
         "tuile_array" : [
             ]
     }
+
+    bbox_lat_max, bbox_lon_min = num2deg(element_send['X'],element_send['Y'],17)
+    bbox_lat_min, bbox_lon_max = num2deg(element_send['X']+1,element_send['Y']+1,17)
+
+    options = {'utagawavtt':'t',
+           'tracegps':'t',
+           'openstreetmap':'t',
+           'bikingspots':'t',
+           'camptocamp':'',
+           'openrunner':''}
+
+    raster_array = webget.task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options)
+
+    element_send["data"] = raster_array
+
     return element_send
 
 
