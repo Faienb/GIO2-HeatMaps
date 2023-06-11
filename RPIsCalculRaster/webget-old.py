@@ -17,23 +17,23 @@ from colorama import Fore,Style
 # bbox_lon_max = 5.50
 # bbox_lat_max = 45.50
 
-bbox_lon_min = 7.40
-bbox_lat_min = 46.40
-bbox_lon_max = 8.50
-bbox_lat_max = 47.50
+# bbox_lon_min = 7.40
+# bbox_lat_min = 46.40
+# bbox_lon_max = 8.50
+# bbox_lat_max = 47.50
 
 # bbox_lon_min = 7.40
 # bbox_lat_min = 50.40
 # bbox_lon_max = 7.50
 # bbox_lat_max = 50.50
 
-options = {'utagawavtt':'t',
-           'tracegps':'t',
-           'openstreetmap':'t',
-           'bikingspots':'t',
-           'camptocamp':'',
-           'openrunner':'',
-           'komoot':''}
+# options = {'utagawavtt':'t',
+#            'tracegps':'t',
+#            'openstreetmap':'t',
+#            'bikingspots':'t',
+#            'camptocamp':'',
+#            'openrunner':'',
+#            'komoot':''}
 
 def get_track_in_bbox_Utagawavtt(lon_min, lat_min, lon_max, lat_max):
     page = 0
@@ -91,33 +91,24 @@ def get_idtrack(rep):
     return idtracks
         
 def get_track_near_point_Tracegps(lon_min, lat_min, lon_max, lat_max):
-    print('---TRACEGPS---')
     lst_idtrack = []
     grid_lon = np.arange(lon_min,lon_max,0.1)
     grid_lat = np.arange(lat_min,lat_max,0.1)
-
+    
     for lon in grid_lon : 
         for lat in grid_lat : 
-            page = 1
             #print(f"Réponse tracegps avec lon = {lon} et lat = {lat}")
-            while True : 
-                url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}&page={page}"
-                rep = requests.get(url)
-                # print(url)
-                # print(rep)
-                idtracks = get_idtrack(rep)
-                if len(idtracks) == 0 : 
-                    break
-                #print(f"les traces suivantes ont été détectées : {idtracks}")
-                for t in idtracks : 
-                    if t is lst_idtrack :
-                        pass
-                        #print(f"trace {t} existe déjà")
-                    elif t not in lst_idtrack : 
-                        lst_idtrack.append(t)
-                        #print(f"trace {t} ajoutée à la liste des traces")
-                page += 1
-                
+            url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}"
+            rep = requests.get(url)
+            idtracks = get_idtrack(rep)
+            #print(f"les traces suivantes ont été détectées : {idtracks}")
+            for t in idtracks : 
+                if t is lst_idtrack :
+                    pass
+                    #print(f"trace {t} existe déjà")
+                elif t not in lst_idtrack : 
+                    lst_idtrack.append(t)
+                    #print(f"trace {t} ajoutée à la liste des traces")
     print(Fore.RED + Style.BRIGHT +'Tracegps : {} tracks have been detected in bbox'.format(len(lst_idtrack)) + Fore.RESET)
     return lst_idtrack
         
@@ -221,31 +212,17 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
         
     #-----OPENSTREETMAP-----
     if options['openstreetmap'] == "t":
-    #     '''
-    #     Utilise l'api d'openstreet map
-    #     --> gpkg
-    #     '''
-    #     # north, south, east, west
-        try:
-            geometries = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
-            
-            if geometries.empty:
-                print("Aucune géométrie trouvée dans la bbox.")
-                pass_openstreet_map = True
-            else:
-                pass_openstreet_map = False
-                print("Géométries récupérées avec succès !")
-                gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
-                #gdf.plot()
-                print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
-        
-
-                del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
-                gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
-                
-        except Exception as e:
-            print(f"Erreur lors de la récupération des géométries : {e}")
-            return None
+        '''
+        Utilise l'api d'openstreet map
+        --> gpkg
+        '''
+        # north, south, east, west
+        gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
+        #gdf.plot()
+        print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
+    
+        del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
+        gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
         
     #-----KOMOOT-----
     # if options['komoot'] == "t":
@@ -298,12 +275,10 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
     # ---- Rasterize ----
     print('bbox')
     print(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,pass_openstreet_map)
+    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
     # Clear file
     for filename in os.listdir(gpx_folder_path) :
         os.remove(gpx_folder_path + '\\' + filename)
-    if pass_openstreet_map != True : 
-        os.remove(gpkg_file)
     # os.remove(gpkg_file)
         
     

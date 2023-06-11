@@ -78,14 +78,14 @@ def tuile_create_elisa(element_send):
 def Subscribe():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Fabien"]["port_rec"])
+    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa1"]["port_rec"])
     socket.connect(ip)
     # socket.subscribe("ecg-rpi-01")
-    socket.subscribe("topicc")
+    socket.subscribe("topicaa")
 
     context2 = zmq.Context()
     sender2 = context2.socket(zmq.PUSH) # Création du socket en mode Push
-    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Fabien"]["port_send"])) # changer ici localhost pour l'IP de votre machine
+    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa1"]["port_send"])) # changer ici localhost pour l'IP de votre machine
 
     t0 = time.time()
     cont = True
@@ -98,7 +98,7 @@ def Subscribe():
             msg2 = tuile_create_elisa(msg2)
         else :
             tile = fusion_tuile_bruno(msg2)
-            msg2["tuile_array"] = tile
+            msg2["data"] = tile
 
         time.sleep(1.0)
         # Connexion au serveur
