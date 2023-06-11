@@ -32,25 +32,15 @@ def num2deg(x_tile, y_tile, zoom):
     return lat_deg, lon_deg
 
 # FONCTION DE CREATION DES TUILES 
-def tuile_create_elisa(json_recv):
+def tuile_create_elisa(element_send):
     print("tuile créée")
-    element_send = {
-        "Z" : json_recv['Z'],
-        "X" : json_recv['X'],
-        "Y": json_recv['Y'],
-        "status" : json_recv['status'],
-        "completion" : json_recv['completion'],
-        "task" : 0,
-        "tuile_array" : [
-            ]
-    }
 
-    bbox_lat_max, bbox_lon_min = num2deg(element_send['X'],element_send['Y'],17)
-    bbox_lat_min, bbox_lon_max = num2deg(element_send['X']+1,element_send['Y']+1,17)
+    bbox_lat_max, bbox_lon_min = num2deg(element_send['X'],element_send['Y'],element_send['Z'])
+    bbox_lat_min, bbox_lon_max = num2deg(element_send['X']+1,element_send['Y']+1,element_send['Z'])
 
     options = {'utagawavtt':'t',
            'tracegps':'t',
-           'openstreetmap':'t',
+           'openstreetmap':'',
            'bikingspots':'t',
            'camptocamp':'',
            'openrunner':''}

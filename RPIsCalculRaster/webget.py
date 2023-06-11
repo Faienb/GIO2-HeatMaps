@@ -211,26 +211,26 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
             get_one_track_Tracegps(i)
         
     #-----OPENSTREETMAP-----
-    if options['openstreetmap'] == "t":
-        '''
-        Utilise l'api d'openstreet map
-        --> gpkg
-        '''
-        # north, south, east, west
-        gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
-        #gdf.plot()
-        print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
+    # if options['openstreetmap'] == "t":
+    #     '''
+    #     Utilise l'api d'openstreet map
+    #     --> gpkg
+    #     '''
+    #     # north, south, east, west
+    #     gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
+    #     #gdf.plot()
+    #     print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
     
-        del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
-        gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
+    #     del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
+    #     gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
         
     #-----KOMOOT-----
-    if options['komoot'] == "t":
-        '''
-        URl : https://api.komoot.de/v007/discover_tours/?lat=46.7669&lng=6.6334&max_distance=30000.0&sport=mtb&limit=100&page=0
-        Utilise l'api de komoot
-        --> json
-        '''
+    # if options['komoot'] == "t":
+    #     '''
+    #     URl : https://api.komoot.de/v007/discover_tours/?lat=46.7669&lng=6.6334&max_distance=30000.0&sport=mtb&limit=100&page=0
+    #     Utilise l'api de komoot
+    #     --> json
+    #     '''
 
     
     #-----CAMPTOCAMP----
@@ -273,12 +273,13 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
     geojson_files = rz.get_file_names(geojson_folder_path)
     
     # ---- Rasterize ----
+    print('bbox')
+    print(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
     raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-    
     # Clear file
     for filename in os.listdir(gpx_folder_path) :
         os.remove(gpx_folder_path + '\\' + filename)
-    os.remove(gpkg_file)
+    # os.remove(gpkg_file)
         
     
  

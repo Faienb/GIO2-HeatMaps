@@ -35,18 +35,18 @@ def rasterize(gpx_file, gpkg_file, geojson_file, bbox_lon_min,bbox_lat_min,bbox_
     
     # Calcul des rasters array en fonction du format des traces
     raster_gpx = gpx_to_raster(gpx_file,transfo)
-    raster_gpkg = gpkg_to_raster(gpkg_file,transfo)
+    # raster_gpkg = gpkg_to_raster(gpkg_file,transfo)
         
     # Calcul du raster final 
-    raster_final = raster_gpx + raster_gpkg
-    
+    # raster_final = raster_gpx + raster_gpkg
+    raster_final = raster_gpx
     # Plot raster
     # fig, ax = plt.subplots(1, figsize = (10, 10))
     # show(raster_final, ax = ax)
     
     return raster_final
 
-def gpkg_to_raster(gpkg_file, raster,output_raster_file):
+def gpkg_to_raster(gpkg_file, raster):
    
     # Read in vector
     vector = gpd.read_file(gpkg_file)
@@ -67,7 +67,7 @@ def gpkg_to_raster(gpkg_file, raster,output_raster_file):
     
     return rasterized
     
-def gpx_to_raster(gpx_file, raster, output_raster_file):
+def gpx_to_raster(gpx_file, raster):
     
     raster_array = np.zeros((256,256))
 
