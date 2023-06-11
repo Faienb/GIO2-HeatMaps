@@ -91,24 +91,33 @@ def get_idtrack(rep):
     return idtracks
         
 def get_track_near_point_Tracegps(lon_min, lat_min, lon_max, lat_max):
+    print('---TRACEGPS---')
     lst_idtrack = []
     grid_lon = np.arange(lon_min,lon_max,0.1)
     grid_lat = np.arange(lat_min,lat_max,0.1)
-    
+
     for lon in grid_lon : 
         for lat in grid_lat : 
+            page = 1
             #print(f"Réponse tracegps avec lon = {lon} et lat = {lat}")
-            url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}"
-            rep = requests.get(url)
-            idtracks = get_idtrack(rep)
-            #print(f"les traces suivantes ont été détectées : {idtracks}")
-            for t in idtracks : 
-                if t is lst_idtrack :
-                    pass
-                    #print(f"trace {t} existe déjà")
-                elif t not in lst_idtrack : 
-                    lst_idtrack.append(t)
-                    #print(f"trace {t} ajoutée à la liste des traces")
+            while True : 
+                url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}&page={page}"
+                rep = requests.get(url)
+                # print(url)
+                # print(rep)
+                idtracks = get_idtrack(rep)
+                if len(idtracks) == 0 : 
+                    break
+                #print(f"les traces suivantes ont été détectées : {idtracks}")
+                for t in idtracks : 
+                    if t is lst_idtrack :
+                        pass
+                        #print(f"trace {t} existe déjà")
+                    elif t not in lst_idtrack : 
+                        lst_idtrack.append(t)
+                        #print(f"trace {t} ajoutée à la liste des traces")
+                page += 1
+                
     print(Fore.RED + Style.BRIGHT +'Tracegps : {} tracks have been detected in bbox'.format(len(lst_idtrack)) + Fore.RESET)
     return lst_idtrack
         
