@@ -8,6 +8,7 @@ import time
 import pickle #Conversion bytes2utf-8
 #Librairie de coloration syntaxique dans la console
 from colorama import Fore,Style
+from PIL import Image
 
 #Initialisation de l'objet verrou
 global lock
@@ -15,6 +16,7 @@ lock = threading.RLock()
 
 #initialisation de la liste des jobs de premiere generation
 global JobsFirstGen
+global JobsSecondGen
 global TaskCompleted
 
 #Creation du contexte zmq pour le publisher
@@ -26,43 +28,176 @@ socket.bind("tcp://*:5556") # On accepte toutes les connexions sur le port 5556
 
 #Creation du dictionnaire des clients
 global RPIs
-RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
-                   "hostname":"ecg-rpi-01",
-                      "port_rec":5556,
-                      "port_send":5560,
-                      "status":True,
-                      "byteName":b'topica'},
-        "ecg-rpi-06":{"ip":"192.168.16.18",
-                   "hostname":"ecg-rpi-06",
-                      "port_rec":5556,
-                      "port_send":5561,
-                      "status":True,
-                      "byteName":b'topicb'},
-        "ecg-rpi-03":{"ip":"192.168.16.19",
-                   "hostname":"ecg-rpi-03",
-                      "port_rec":5556,
-                      "port_send":5562,
-                      "status":True,
-                      "byteName":b'topicc'},
-        "ecg-rpi-04":{"ip":"192.168.16.20",
-                   "hostname":"ecg-rpi-04",
-                      "port_rec":5556,
-                      "port_send":5563,
-                      "status":True,
-                      "byteName":b'topicd'}}
+# RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
+#                    "hostname":"ecg-rpi-01",
+#                       "port_rec":5556,
+#                       "port_send":5560,
+#                       "status":True,
+#                       "byteName":b'topica'},
+#         "ecg-rpi-06":{"ip":"192.168.16.18",
+#                    "hostname":"ecg-rpi-06",
+#                       "port_rec":5556,
+#                       "port_send":5561,
+#                       "status":True,
+#                       "byteName":b'topicb'},
+#         "ecg-rpi-03":{"ip":"192.168.16.19",
+#                    "hostname":"ecg-rpi-03",
+#                       "port_rec":5556,
+#                       "port_send":5562,
+#                       "status":True,
+#                       "byteName":b'topicc'},
+#         "ecg-rpi-04":{"ip":"192.168.16.20",
+#                    "hostname":"ecg-rpi-04",
+#                       "port_rec":5556,
+#                       "port_send":5563,
+#                       "status":True,
+#                       "byteName":b'topicd'}}
 
-RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
-                   "hostname":"laptop-Elisa",
+RPIs = {"laptop_Elisa1":{"ip":"192.168.16.17",
+                   "hostname":"laptop_Elisa1",
                       "port_rec":5556,
                       "port_send":5560,
                       "status":True,
-                      "byteName":b'topica'},
-        "laptop_Bruno":{"ip":"192.168.16.18",
-                   "hostname":"laptop_Bruno",
+                      "byteName":b'topicaa'},
+        "laptop_Elisa2":{"ip":"192.168.16.17",
+                           "hostname":"laptop_Elisa2",
+                              "port_rec":5556,
+                              "port_send":5561,
+                              "status":True,
+                              "byteName":b'topicab'},
+        "laptop_Elisa3":{"ip":"192.168.16.17",
+                           "hostname":"laptop_Elisa3",
+                              "port_rec":5556,
+                              "port_send":5562,
+                              "status":True,
+                              "byteName":b'topicac'},
+        "laptop_Bruno1":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno1",
                       "port_rec":5556,
-                      "port_send":5561,
+                      "port_send":5570,
                       "status":True,
-                      "byteName":b'topicb'}}
+                      "byteName":b'topicba'},
+        "laptop_Bruno2":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno2",
+                      "port_rec":5556,
+                      "port_send":5571,
+                      "status":True,
+                      "byteName":b'topicbb'},
+        "laptop_Bruno3":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno3",
+                      "port_rec":5556,
+                      "port_send":5572,
+                      "status":True,
+                      "byteName":b'topicbc'}}
+
+def generate_color_rgba_from_nbre(nb, fact, type_color):
+    """
+    
+
+    Parameters
+    ----------
+    nb : int
+        nombre à transformer en RGBA
+    fact : int
+        facteur pour rgb maximum et pas de transparence.
+    type_color : string
+        "r" : red / "g" = green / "b" : bleu / "w": white.
+
+    Returns
+    -------
+    list
+        [r,g,b,a]
+
+    """
+    # initialisation RGBA
+    r=0
+    g=0
+    b=0
+    a=0
+    col_haut=255
+    col_bas=0
+    if type_color=="r" or type_color=="g" or type_color=="b":
+        col_haut=100
+        col_bas=255
+    
+    # Longeur de la couleur d'échelle
+    l_col=abs(col_haut-col_bas)
+    
+    degre=2
+    mult_c=l_col/(fact**degre)
+    mult_deg=255/(fact**degre)
+    mult_log=255/np.log2(fact+1)
+    mult_lin=255/fact
+    
+    
+    color=mult_c*nb**degre
+    
+    # transparence selon log
+    # a=mult_log*np.log2(nb+1)
+    
+    # Transparence selon degré
+    a=mult_deg*nb**degre
+    
+    # Transparence selon linéaire
+    # a=mult_lin*nb
+    
+    if color>l_col:
+        color=l_col
+    if a>255:
+        a=255
+    
+    if type_color=="r":
+        r=col_bas-color
+    elif type_color=="g":
+        g=col_bas-color
+    elif type_color=="b":
+        b=col_bas-color
+    else:
+        r=color
+        g=color
+        b=color
+    
+    return [r,g,b,a]
+
+def create_image_from_array(array, color):
+    """
+    
+
+    Parameters
+    ----------
+    array : np.array
+        array 256x256 contenant le nbre de passage.
+    color : string
+        "r" : red / "g" = green / "b" : bleu / "w": white
+
+    Returns
+    -------
+    image_create : img
+        image RGBA.
+    color_image : array RGBA (256x256x4)
+        valeur int des RGBA dans un array.
+
+    """
+    color_image = np.zeros(shape=(256,256,4), dtype="uint8")
+    
+    # calcul du facteur de la couleur maximum
+    mean = np.mean(array)
+    maxi = 1
+    
+
+    for i in range(array.shape[0]) :
+        for j in range(array.shape[1]):
+            color_rgba=generate_color_rgba_from_nbre(array[i][j],maxi, color)
+            
+            
+            color_image[i][j][0]=color_rgba[0]
+            color_image[i][j][1]=color_rgba[1]
+            color_image[i][j][2]=color_rgba[2]
+            color_image[i][j][3]=color_rgba[3]
+            
+            
+    image_create = Image.fromarray(color_image)
+    return image_create, color_image
 
 
 
@@ -95,28 +230,27 @@ class RPI():
             task = msgReceived["task"]
             X = msgReceived["X"]
             Y = msgReceived["Y"]
+            Z = msgReceived["Z"]
             key = msgReceived["key"]
             #Il va falloir y mettre un lock pour l'update des deux dicos cas ou deux taches finissent en meme temps
             with lock :
                 print(Fore.RED + Style.BRIGHT + "X={:d}, Y={:d} receive from RPI {:s}".format(X,Y,self.hostName) + Fore.RESET)
+                Rasterdata = msgReceived["data"]
                 if task == 0 :
-                    Rasterdata = msgReceived["data"]
                     JobsFirstGen[key]["data"] = Rasterdata
-                    #update du statut de la tuile
-                    #Peut etre y ajouter un controle ici avant
-                    #Si tuile pas correct remettre le status en False
                     JobsFirstGen[key]["status"] = True
                     JobsFirstGen[key]["completion"] = True
-                    RPIs[self.hostName]["status"] = True
                 else :
-                    Rasterdata = msgReceived["tuile_array"]
-                    JobsSecondGen[key]["tuile_array"] = Rasterdata
-                    #update du statut de la tuile
-                    #Peut etre y ajouter un controle ici avant
-                    #Si tuile pas correct remettre le status en False
+                    JobsSecondGen[key]["data"] = Rasterdata
                     JobsSecondGen[key]["status"] = True
                     JobsSecondGen[key]["completion"] = True
-                    RPIs[self.hostName]["status"] = True
+                RPIs[self.hostName]["status"] = True
+                    
+                #Ecriture des images
+                img, array = create_image_from_array(Rasterdata, "r")
+                if not os.path.exists(ParentFolder+str(Z)+"/"+str(X)):
+                    os.mkdir(ParentFolder+str(Z)+"/"+str(X))
+                img.save(ParentFolder + str(Z) + "/" + str(X) + "/" + str(Y) + ".PNG" )
             
             
 #Iteration sur les clients pour creer un objet PULL dans la donnee de chaque ligne
@@ -128,6 +262,7 @@ for key,data in RPIs.items():
 global Zmax
 Zmax = 17
 #Chemin relatif du dossier des tuiles en fonction de l'emplacement du script python
+global ParentFolder
 ParentFolder = "../Tuiles/"
 #Calcul sur toute la suisse
 LatMinDeg = 45.80000
@@ -141,11 +276,12 @@ LonMinDeg =  7.11991
 LatMaxDeg = 46.39470
 LonMaxDeg = 7.49827
 
-#Calcul sur le Valais central 
-LatMinDeg = 45.90
-LonMinDeg =  7.10
-LatMaxDeg = 45.92
-LonMaxDeg = 7.12
+
+# Calcul sur Chamonix
+LatMinDeg = 45.713
+LonMinDeg =  4.82
+LatMaxDeg = 45.7267
+LonMaxDeg = 4.844
 
 #Fonction pour calculer dpeuis une latitude et une longitude le numero X et Y de la tuile
 #C'est un standard OGC
@@ -183,8 +319,9 @@ def generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax) :
         for j in range(Ymin,Ymax+1):
             TuileXY_Zmax.append([i,j])
             #Le status nous indique si False que la tache n'est pas faite
-            JobsFirstGen.update({JobId:{"Z":1,"X":i,"Y":j,"task":0,"status":False,"completion":False,"data":False,"key":JobId}})
+            JobsFirstGen.update({JobId:{"Z":Zmax,"X":i,"Y":j,"task":0,"status":False,"completion":False,"data":False,"key":JobId}})
             JobId += 1
+    print(len(JobsFirstGen))
     return TuileXY_Zmax,JobsFirstGen
 
 #Liste des jobs de la premiere generation de travaux
@@ -353,14 +490,15 @@ def getTask2(JobsFirsGen):
                 else :
                     tuiles.append(JobsFirsGen[k]["data"])
                 n += 1
-            JobsSecondGen.update({counter:{"Z":Zmax-1,"X":JobsFirsGen[t1]["X"],"Y":JobsFirsGen[t1]["Y"],"task":1,"tuile_array1":tuiles[0],"tuile_array2":tuiles[1],"tuile_array3":tuiles[2],"tuile_array4":tuiles[3],"status":False,"completion":False,"key":counter,"tuile_array":False}})
+            JobsSecondGen.update({counter:{"Z":Zmax-1,"X":JobsFirsGen[t1]["X"],"Y":JobsFirsGen[t1]["Y"],"task":1,"tuile_array1":tuiles[0],"tuile_array2":tuiles[1],"tuile_array3":tuiles[2],"tuile_array4":tuiles[3],"status":False,"completion":False,"key":counter,"data":False}})
             counter += 1
     return JobsSecondGen
  
 
 #Creation des dossiers des tuiles
 for i in range(8,Zmax+1):
-    createZoomLevelFolders(ParentFolder, i)  
+    createZoomLevelFolders(ParentFolder, i)
+
 
 #Fonction d'envoi des 4 heatmap pour le tuilage
 #Fonction d'envoi des données de bounding box aux RPI's
@@ -369,8 +507,8 @@ for i in range(8,Zmax+1):
     #if True : en cours ou termine
 def threadSendRPIs2():
     with lock :
-        print(Fore.GREEN + Style.BRIGHT + "Starting Task 1" + Fore.RESET)
-        print(Fore.GREEN + Style.BRIGHT + "Sending data for computation of the minimum level tiles" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Starting Task 2" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "Sending data for fusion of the tiles" + Fore.RESET)
     print(Fore.GREEN + Style.BRIGHT + "Initializing socket" + Fore.RESET)
     time.sleep(2.0)
     CheckSendingForBreak = True
@@ -405,7 +543,7 @@ def threadSendRPIs2():
                                 with lock :
                                     print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
                                 TaskCompleted = True
-                                print("hello")
+                                print("hello 2")
                                 break
 
             #Ce break la s'opere si une tache a ete envoyee
@@ -414,7 +552,7 @@ def threadSendRPIs2():
                 break
                         
     with lock :
-        print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
+        print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 2 are sent or done !" + Fore.RESET)
         print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
         print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
         
@@ -423,20 +561,20 @@ def threadSendRPIs2():
 def threadControlTask2():
     statusTask2 = False
     with lock :
-        print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 1 reception" + Fore.RESET)
+        print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 2 reception" + Fore.RESET)
     while not statusTask2 :
-        findNotFinishedTask = True
-        for key,data in JobsFirstGen.items():
+        findNotFinishedTask2 = True
+        for key,data in JobsSecondGen.items():
             if not data['completion'] :
-                findNotFinishedTask = False
+                findNotFinishedTask2 = False
                 break
         
-        if not findNotFinishedTask :
+        if not findNotFinishedTask2 :
             with lock :
                 print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
         else :
             with lock :
-                print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 1" + Fore.RESET)
+                print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 2" + Fore.RESET)
             statusTask2 = True
             #Interruption de toutes les requetes Pull sur les RPIs
             for key,data in RPIs.items():
@@ -460,7 +598,7 @@ while not cont :
 for key,data in RPIs.items():
     data["status"] = True
     
-print("Hello")
+print("Hello 3")
 JobsSecondGen = getTask2(JobsFirstGen)
 
     
@@ -468,4 +606,14 @@ thread3 = threading.Thread(target=threadSendRPIs2)
 thread3.start()
 thread4 = threading.Thread(target=threadControlTask2)
 thread4.start()
+
+cont = False
+while not cont :
+    findNotFinishedTask2 = True
+    for key,data in JobsSecondGen.items():
+        if not data['completion'] :
+            findNotFinishedTask2 = False
+            break
+    if findNotFinishedTask2 :
+        cont = True
 
