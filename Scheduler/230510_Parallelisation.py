@@ -51,6 +51,21 @@ RPIs = {"ecg-rpi-01":{"ip":"192.168.16.17",
                       "status":True,
                       "byteName":b'topicd'}}
 
+RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
+                   "hostname":"laptop-Elisa",
+                      "port_rec":5556,
+                      "port_send":5560,
+                      "status":True,
+                      "byteName":b'topica'},
+        "laptop_Bruno":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno",
+                      "port_rec":5556,
+                      "port_send":5561,
+                      "status":True,
+                      "byteName":b'topicb'}}
+
+
+
 #Creation de la classe des RPIs
 #Initialisation de la classe RPI
 class RPI():
@@ -110,6 +125,7 @@ for key,data in RPIs.items():
 
 #Declaration des parametres de base du calcul
 #Niveau maximal de zoom
+global Zmax
 Zmax = 17
 #Chemin relatif du dossier des tuiles en fonction de l'emplacement du script python
 ParentFolder = "../Tuiles/"
@@ -429,7 +445,7 @@ def threadControlTask2():
             print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 1 seconds" + Fore.RESET)
         time.sleep(1.0)
     with lock :
-        print(Fore.MAGENTA + Style.BRIGHT + "Control of task 1 finished, all tasks completed" + Fore.RESET)
+        print(Fore.MAGENTA + Style.BRIGHT + "Control of task 2 finished, all tasks completed" + Fore.RESET)
 
 cont = False
 while not cont :
