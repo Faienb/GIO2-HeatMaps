@@ -9,7 +9,7 @@ import math
 
 IPscheduler = "10.192.91.197"
 RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
-                   "hostname":"laptop-Elisa",
+                   "hostname":"laptop_Elisa",
                       "port_rec":5556,
                       "port_send":5560,
                       "status":True,
@@ -19,7 +19,13 @@ RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
                       "port_rec":5556,
                       "port_send":5561,
                       "status":True,
-                      "byteName":b'topicb'}}
+                      "byteName":b'topicb'},
+        "laptop_Fabien":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Fabien",
+                      "port_rec":5556,
+                      "port_send":5561,
+                      "status":True,
+                      "byteName":b'topicc'}}
 
 def num2deg(x_tile, y_tile, zoom):
     """
