@@ -236,15 +236,9 @@ class RPI():
             with lock :
                 print(Fore.RED + Style.BRIGHT + "X={:d}, Y={:d} receive from RPI {:s}".format(X,Y,self.hostName) + Fore.RESET)
                 Rasterdata = msgReceived["data"]
-                if task == 0 :
-                    JobsFirstGen[key]["data"] = Rasterdata
-                    JobsFirstGen[key]["status"] = True
-                    JobsFirstGen[key]["completion"] = True
-                else :
-                    print(Rasterdata)
-                    JobsSecondGen[key]["data"] = Rasterdata
-                    JobsSecondGen[key]["status"] = True
-                    JobsSecondGen[key]["completion"] = True
+                JobsFirstGen[key]["data"] = Rasterdata
+                JobsFirstGen[key]["status"] = True
+                JobsFirstGen[key]["completion"] = True
                 RPIs[self.hostName]["status"] = True
                     
                 #Ecriture des images
@@ -261,7 +255,9 @@ for key,data in RPIs.items():
 #Declaration des parametres de base du calcul
 #Niveau maximal de zoom
 global Zmax
-Zmax = 17
+Zmax = 18
+global Zmin
+Zmin = 14
 #Chemin relatif du dossier des tuiles en fonction de l'emplacement du script python
 global ParentFolder
 ParentFolder = "../Tuiles/"
@@ -322,11 +318,7 @@ def generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax) :
             #Le status nous indique si False que la tache n'est pas faite
             JobsFirstGen.update({JobId:{"Z":Zmax,"X":i,"Y":j,"task":0,"status":False,"completion":False,"data":False,"key":JobId}})
             JobId += 1
-    print(len(JobsFirstGen))
-    return TuileXY_Zmax,JobsFirstGen
-
-#Liste des jobs de la premiere generation de travaux
-TuileXY_Zmax, JobsFirstGen = generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, Zmax)            
+    return JobsFirstGen         
 #Fonction d'envoi des données de bounding box aux RPI's
 #Status in JobsFirsGen :
     #if False : a faire
@@ -413,10 +405,6 @@ def threadControlTask1():
     
     
 
-#Fonction de generation des taches pour le tuilage
-def generateTasksForTiling():
-    pass
-
 
 #Fonction de gestion des niveaux de zoom pour l'envoi et la réception des heatmap (tuilage)
 
@@ -430,191 +418,52 @@ def createZoomLevelFolders(ParentFolder, Z):
         with lock :
             print(Fore.CYAN + Style.BRIGHT + "Zoom folder {:d} already exists".format(Z) + Fore.RESET)
 
-
-#Fonction générale du Scheduler tuilage
-
-#Processus complet
-#Start des thread sending et receiving
-thread1 = threading.Thread(target=threadSendRPIs1)
-thread1.start()
-thread2 = threading.Thread(target=threadControlTask1)
-thread2.start()
+#Creation des dossiers des tuiles
+for i in range(Zmin,Zmax+1):
+    createZoomLevelFolders(ParentFolder, i)
 
 RPIsThreads = []
 
 for key,data in RPIs.items():
     data["PullObject"].createPullContext()
     RPIsThreads.append(threading.Thread(target=data["PullObject"].listenForPullRequests))
- 
+    
 #Creation des threads Pull RPIs
 for i in RPIsThreads :
-    i.start()  
+    i.start()
+
+#Fonction générale du Scheduler tuilage
+for i in range(Zmax,Zmin,-1):
+    JobsFirstGen = {}
+    JobsFirstGen = generateXYforZ(LatMinDeg, LonMinDeg, LatMaxDeg, LonMaxDeg, i)
+    print(len(JobsFirstGen))
+
+    #Processus complet
+    #Start des thread sending et receiving
+    thread1 = threading.Thread(target=threadSendRPIs1)
+    thread1.start()
+    thread2 = threading.Thread(target=threadControlTask1)
+    thread2.start()
+    
+    cont = False
+    while not cont :
+        findNotFinishedTask = True
+        for key,data in JobsFirstGen.items():
+            if not data['completion'] :
+                findNotFinishedTask = False
+                break
+        if findNotFinishedTask :
+            cont = True
+    thread1.join()
+    thread2.join()
+            
+
+
      
-#==========================================================================================
-#Task 2
-#==========================================================================================
-     
-#Recuperation de la matrice des tasks 2
-def getTask2(JobsFirsGen):
-    Xmin = JobsFirsGen[1]["X"]
-    Ymin = JobsFirsGen[1]["Y"]
-    Xmax = JobsFirsGen[len(JobsFirsGen)]["X"]
-    Ymax = JobsFirsGen[len(JobsFirsGen)]["Y"]
-    lenX = Xmax-Xmin
-    lenY = Ymax-Ymin
-    lenX2 = lenX + lenX%2
-    lenY2 = lenY + lenY%2
-    ArrayofTiles = np.zeros(shape=(lenY2,lenX2))
-    Tiles = {}
-    for key,data in JobsFirsGen.items():
-        Tiles.update({(data["X"],data["Y"]):key})
-    
-    
-    for i in range(lenX2) :
-        for j in range(lenY2) :
-            if i+1 > lenX or j+1 > lenY :
-                ArrayofTiles[j][i] = 0
-            else :
-                ArrayofTiles[j][i] = Tiles[(Xmin+i,Ymin+j)]
-    
-    JobsSecondGen = {}
-    counter =  1
-    for i in range(int(lenX2/2)):
-        for j in range(int(lenY2/2)):
-            t1 = ArrayofTiles[2*j][2*i]
-            t = [ArrayofTiles[2*j][2*i],ArrayofTiles[2*j][2*i+1],ArrayofTiles[2*j+1][2*i],ArrayofTiles[2*j+1][2*i+1]]
-            tuiles = []
-            n = 0
-            for k in t :
-                if k == 0 :
-                    tuiles.append(np.zeros(shape=(256,256)))
-                else :
-                    tuiles.append(JobsFirsGen[k]["data"])
-                n += 1
-            JobsSecondGen.update({counter:{"Z":Zmax-1,"X":JobsFirsGen[t1]["X"],"Y":JobsFirsGen[t1]["Y"],"task":1,"tuile_array1":tuiles[0],"tuile_array2":tuiles[1],"tuile_array3":tuiles[2],"tuile_array4":tuiles[3],"status":False,"completion":False,"key":counter,"data":False}})
-            counter += 1
-    return JobsSecondGen
  
 
-#Creation des dossiers des tuiles
-for i in range(8,Zmax+1):
-    createZoomLevelFolders(ParentFolder, i)
 
 
-#Fonction d'envoi des 4 heatmap pour le tuilage
-#Fonction d'envoi des données de bounding box aux RPI's
-#Status in JobsFirsGen :
-    #if False : a faire
-    #if True : en cours ou termine
-def threadSendRPIs2():
-    with lock :
-        print(Fore.GREEN + Style.BRIGHT + "Starting Task 2" + Fore.RESET)
-        print(Fore.GREEN + Style.BRIGHT + "Sending data for fusion of the tiles" + Fore.RESET)
-    print(Fore.GREEN + Style.BRIGHT + "Initializing socket" + Fore.RESET)
-    time.sleep(2.0)
-    CheckSendingForBreak = True
-    TaskCompleted = False
-    while not TaskCompleted :
-        CheckSendingForBreak = True
-        for key in RPIs.keys():
-            if CheckSendingForBreak :
-                if RPIs[key]["status"] :
-                    with lock :
-                        print(Fore.GREEN + Style.BRIGHT + "{:s} is free".format(RPIs[key]["hostname"]) + Fore.RESET)
-                    counterTasks = 0
-                    for key2 in JobsSecondGen.keys():
-                        if not JobsSecondGen[key2]["status"] :
-                            with lock :
-                                print(Fore.GREEN + Style.BRIGHT + "Sending task : id={:d} X={:d}, Y={:d}".format(key2,JobsSecondGen[key2]["X"],JobsSecondGen[key2]["Y"]) + Fore.RESET)
-                            #Envoi de la tache
-                            topic = RPIs[key]["byteName"]
-                            socket.send_multipart([topic,pickle.dumps(JobsSecondGen[key2])])
-                            with lock :
-                                #Changement de statut du RPI
-                                RPIs[key]["status"] = False
-                                #Changement de statut de la tache envoyee
-                                JobsSecondGen[key2]["status"] = True
-                                CheckSendingForBreak = False
-                            break
-                        #Compteur a chaque iteration de recherche de tache
-                        #Pous savoir si toutes les taches ont ete faites
-                        else :
-                            counterTasks += 1
-                            if counterTasks == len(JobsSecondGen):
-                                with lock :
-                                    print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 1 are sent or done !" + Fore.RESET)
-                                TaskCompleted = True
-                                print("hello 2")
-                                break
 
-            #Ce break la s'opere si une tache a ete envoyee
-            #Pour que la boucle de controle des RPI reparte a zero a chaque envoi de tache
-            else :
-                break
-                        
-    with lock :
-        print(Fore.GREEN + Style.BRIGHT + "All tasks of generation 2 are sent or done !" + Fore.RESET)
-        print(Fore.GREEN + Style.BRIGHT + "Waiting for thread 2 to retrieve all tasks" + Fore.RESET)
-        print(Fore.GREEN + Style.BRIGHT + "Closing publish context" + Fore.RESET)
+
         
-
-#Fonction de controle de la recuperation des heatmap Raster
-def threadControlTask2():
-    statusTask2 = False
-    with lock :
-        print(Fore.MAGENTA + Style.BRIGHT + "Starting to control Task 2 reception" + Fore.RESET)
-    while not statusTask2 :
-        findNotFinishedTask2 = True
-        for key,data in JobsSecondGen.items():
-            if not data['completion'] :
-                findNotFinishedTask2 = False
-                break
-        
-        if not findNotFinishedTask2 :
-            with lock :
-                print(Fore.MAGENTA + Style.BRIGHT + "Process still pending" + Fore.RESET)
-        else :
-            with lock :
-                print(Fore.MAGENTA + Style.BRIGHT + "All tasks are finished, closing process 2" + Fore.RESET)
-            statusTask2 = True
-            #Interruption de toutes les requetes Pull sur les RPIs
-            for key,data in RPIs.items():
-                data["PullObject"].cont = False
-        with lock :
-            print(Fore.MAGENTA + Style.BRIGHT + "Going to sleep for 1 seconds" + Fore.RESET)
-        time.sleep(1.0)
-    with lock :
-        print(Fore.MAGENTA + Style.BRIGHT + "Control of task 2 finished, all tasks completed" + Fore.RESET)
-
-cont = False
-while not cont :
-    findNotFinishedTask = True
-    for key,data in JobsFirstGen.items():
-        if not data['completion'] :
-            findNotFinishedTask = False
-            break
-    if findNotFinishedTask :
-        cont = True
-        
-# for key,data in RPIs.items():
-#     data["status"] = True
-    
-print("Hello 3")
-JobsSecondGen = getTask2(JobsFirstGen)
-
-    
-thread3 = threading.Thread(target=threadSendRPIs2)
-thread3.start()
-thread4 = threading.Thread(target=threadControlTask2)
-thread4.start()
-
-cont = False
-while not cont :
-    findNotFinishedTask2 = True
-    for key,data in JobsSecondGen.items():
-        if not data['completion'] :
-            findNotFinishedTask2 = False
-            break
-    if findNotFinishedTask2 :
-        cont = True
-
