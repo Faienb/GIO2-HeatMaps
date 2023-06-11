@@ -220,18 +220,32 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
             get_one_track_Tracegps(i)
         
     #-----OPENSTREETMAP-----
-    # if options['openstreetmap'] == "t":
+    if options['openstreetmap'] == "t":
     #     '''
     #     Utilise l'api d'openstreet map
     #     --> gpkg
     #     '''
     #     # north, south, east, west
-    #     gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
-    #     #gdf.plot()
-    #     print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
-    
-    #     del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
-    #     gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
+        try:
+            geometries = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
+            
+            if geometries.empty:
+                print("Aucune géométrie trouvée dans la bbox.")
+                pass_openstreet_map = True
+            else:
+                pass_openstreet_map = False
+                print("Géométries récupérées avec succès !")
+                gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
+                #gdf.plot()
+                print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
+        
+
+                del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
+                gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
+                
+        except Exception as e:
+            print(f"Erreur lors de la récupération des géométries : {e}")
+            return None
         
     #-----KOMOOT-----
     # if options['komoot'] == "t":
@@ -284,10 +298,12 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
     # ---- Rasterize ----
     print('bbox')
     print(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
+    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,pass_openstreet_map)
     # Clear file
     for filename in os.listdir(gpx_folder_path) :
         os.remove(gpx_folder_path + '\\' + filename)
+    if pass_openstreet_map != True : 
+        os.remove(gpkg_file)
     # os.remove(gpkg_file)
         
     
