@@ -8,24 +8,42 @@ import webget as webget
 import math
 
 IPscheduler = "10.192.91.197"
-RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
-                   "hostname":"laptop_Elisa",
+RPIs = {"laptop_Elisa1":{"ip":"192.168.16.17",
+                   "hostname":"laptop_Elisa1",
                       "port_rec":5556,
                       "port_send":5560,
                       "status":True,
-                      "byteName":b'topica'},
-        "laptop_Bruno":{"ip":"192.168.16.18",
-                   "hostname":"laptop_Bruno",
+                      "byteName":b'topicaa'},
+        "laptop_Elisa2":{"ip":"192.168.16.17",
+                           "hostname":"laptop_Elisa2",
+                              "port_rec":5556,
+                              "port_send":5561,
+                              "status":True,
+                              "byteName":b'topicab'},
+        "laptop_Elis3":{"ip":"192.168.16.17",
+                           "hostname":"laptop_Elisa3",
+                              "port_rec":5556,
+                              "port_send":5562,
+                              "status":True,
+                              "byteName":b'topicac'},
+        "laptop_Bruno1":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno1",
                       "port_rec":5556,
-                      "port_send":5561,
+                      "port_send":5570,
                       "status":True,
-                      "byteName":b'topicb'},
-        "laptop_Fabien":{"ip":"192.168.16.18",
-                   "hostname":"laptop_Fabien",
+                      "byteName":b'topicba'},
+        "laptop_Bruno2":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno2",
                       "port_rec":5556,
-                      "port_send":5561,
+                      "port_send":5571,
                       "status":True,
-                      "byteName":b'topicc'}}
+                      "byteName":b'topicbb'},
+        "laptop_Bruno3":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Bruno3",
+                      "port_rec":5556,
+                      "port_send":5572,
+                      "status":True,
+                      "byteName":b'topicbc'}}
 
 def num2deg(x_tile, y_tile, zoom):
     """
@@ -60,14 +78,14 @@ def tuile_create_elisa(element_send):
 def Subscribe():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa"]["port_rec"])
+    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Fabien"]["port_rec"])
     socket.connect(ip)
     # socket.subscribe("ecg-rpi-01")
-    socket.subscribe("topica")
+    socket.subscribe("topicc")
 
     context2 = zmq.Context()
     sender2 = context2.socket(zmq.PUSH) # Création du socket en mode Push
-    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa"]["port_send"])) # changer ici localhost pour l'IP de votre machine
+    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Fabien"]["port_send"])) # changer ici localhost pour l'IP de votre machine
 
     t0 = time.time()
     cont = True
