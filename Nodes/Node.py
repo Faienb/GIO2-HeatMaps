@@ -8,24 +8,12 @@ import webget as webget
 import math
 
 IPscheduler = "10.192.91.197"
-RPIs = {"laptop_Elisa1":{"ip":"192.168.16.17",
-                   "hostname":"laptop_Elisa1",
+RPIs = {"laptop_Elisa":{"ip":"192.168.16.17",
+                   "hostname":"laptop_Elisa",
                       "port_rec":5556,
                       "port_send":5560,
                       "status":True,
-                      "byteName":b'topicaa'},
-        "laptop_Elisa2":{"ip":"192.168.16.17",
-                           "hostname":"laptop_Elisa2",
-                              "port_rec":5556,
-                              "port_send":5561,
-                              "status":True,
-                              "byteName":b'topicab'},
-        "laptop_Elisa3":{"ip":"192.168.16.17",
-                           "hostname":"laptop_Elisa3",
-                              "port_rec":5556,
-                              "port_send":5562,
-                              "status":True,
-                              "byteName":b'topicac'},
+                      "byteName":b'topica'},
         "laptop_Bruno1":{"ip":"192.168.16.18",
                    "hostname":"laptop_Bruno1",
                       "port_rec":5556,
@@ -43,7 +31,13 @@ RPIs = {"laptop_Elisa1":{"ip":"192.168.16.17",
                       "port_rec":5556,
                       "port_send":5572,
                       "status":True,
-                      "byteName":b'topicbc'}}
+                      "byteName":b'topicbc'},
+        "laptop_Fabien":{"ip":"192.168.16.18",
+                   "hostname":"laptop_Fabien",
+                      "port_rec":5556,
+                      "port_send":5562,
+                      "status":True,
+                      "byteName":b'topicc'}}
 
 def num2deg(x_tile, y_tile, zoom):
     """
@@ -65,7 +59,7 @@ def tuile_create_elisa(element_send):
     options = {'utagawavtt':'t',
            'tracegps':'t',
            'openstreetmap':'',
-           'bikingspots':'t',
+           'bikingspots':'',
            'camptocamp':'',
            'openrunner':''}
 
@@ -78,32 +72,35 @@ def tuile_create_elisa(element_send):
 def Subscribe():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa1"]["port_rec"])
+    ip = "tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Bruno3"]["port_rec"])
     socket.connect(ip)
     # socket.subscribe("ecg-rpi-01")
-    socket.subscribe("topicaa")
+    socket.subscribe("topicbc")
 
     context2 = zmq.Context()
     sender2 = context2.socket(zmq.PUSH) # Création du socket en mode Push
-    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Elisa1"]["port_send"])) # changer ici localhost pour l'IP de votre machine
+    sender2.connect("tcp://{:s}:{:d}".format(IPscheduler,RPIs["laptop_Bruno3"]["port_send"])) # changer ici localhost pour l'IP de votre machine
 
     t0 = time.time()
     cont = True
     while cont :
-        print("Hello")
+        print("laptop_Bruno3")
         [topic,msg] = socket.recv_multipart()
+        
         msg2 = pickle.loads(msg)
         task = msg2["task"]
         if task == 0 :
             msg2 = tuile_create_elisa(msg2)
         else :
             tile = fusion_tuile_bruno(msg2)
+            print(tile)
             msg2["data"] = tile
-
+        
         time.sleep(1.0)
+        print(msg2)
         # Connexion au serveur
         sender2.send_pyobj(msg2)
-
+Subscribe()
 #Start des thread sending et receiving
-thread1 = threading.Thread(target=Subscribe)
-thread1.start()
+# thread1 = threading.Thread(target=Subscribe)
+# thread1.start()
