@@ -7,33 +7,10 @@ import polyline
 import numpy as np
 import rasterize as rz
 import os
+import shutil
 import json
-
 #Librairie de coloration syntaxique dans la console
 from colorama import Fore,Style
-
-# bbox_lon_min = 5.40
-# bbox_lat_min = 45.40
-# bbox_lon_max = 5.50
-# bbox_lat_max = 45.50
-
-bbox_lon_min = 7.40
-bbox_lat_min = 46.40
-bbox_lon_max = 8.50
-bbox_lat_max = 47.50
-
-# bbox_lon_min = 7.40
-# bbox_lat_min = 50.40
-# bbox_lon_max = 7.50
-# bbox_lat_max = 50.50
-
-options = {'utagawavtt':'t',
-           'tracegps':'t',
-           'openstreetmap':'t',
-           'bikingspots':'t',
-           'camptocamp':'',
-           'openrunner':'',
-           'komoot':''}
 
 def get_track_in_bbox_Utagawavtt(lon_min, lat_min, lon_max, lat_max):
     page = 0
@@ -56,11 +33,12 @@ def get_one_track_Utagawavtt(id_track):
     # Envoyer la requête GET
     rep = requests.get(url)
 
+
     # Vérifier le code de statut de la réponse
     if rep.status_code == requests.codes.ok:
         # Retourner le contenu de la réponse
         # Attention : forcé l'écriture en encodage utf-8
-        with open('gpx//utagawavtt-{}.gpx'.format(id_track),'w',encoding="utf-8") as f :
+        with open('tracks//utagawavtt-{}.gpx'.format(id_track),'w',encoding="utf-8") as f :
             f.write(rep.text)
             # print('Save file gpx//utagawavtt-{}.gpx'.format(id_track))
     else:
@@ -71,9 +49,8 @@ def get_one_track_Utagawavtt(id_track):
 def get_one_track_Tracegps(id_track):
     url = 'http://www.tracegps.com/index.php?func=telecharge&idcircuit={}&type=gpx'.format(id_track)
     rep = requests.get(url)
-    with open('gpx//tracegps-{}.gpx'.format(id_track),'w', encoding="utf-8") as f :
+    with open('tracks//tracegps-{}.gpx'.format(id_track),'w', encoding="utf-8") as f :
         f.write(rep.text)
-        # print('Save file gpx//tracegps-{}.gpx'.format(id_track))
         
 def get_idtrack(rep):
     idtracks = []
@@ -103,8 +80,6 @@ def get_track_near_point_Tracegps(lon_min, lat_min, lon_max, lat_max):
             while True : 
                 url = f"http://www.tracegps.com/index.php?func=liste&code=coord&lat={lat}&lon={lon}&page={page}"
                 rep = requests.get(url)
-                # print(url)
-                # print(rep)
                 idtracks = get_idtrack(rep)
                 if len(idtracks) == 0 : 
                     break
@@ -125,7 +100,7 @@ def get_track_in_bbox_Camptocamp(E_min, N_min, E_max, N_max):
     url = 'https://api.camptocamp.org/outings?qa=draft,great&bbox={},{},{},{}offset=100&limit=100'.format(E_min, N_min, E_max, N_max)
     rep = requests.get(url)
     out = rep.json()
-    print(url)
+    # print(url)
     for act in out['documents']:
         if act['geometry']['has_geom_detail']:
             docu_id = act['document_id']
@@ -134,7 +109,7 @@ def get_track_in_bbox_Camptocamp(E_min, N_min, E_max, N_max):
 def get_one_track_Camptocamp(doc_id): 
     GoogleMercatortoWGS84 = Transformer.from_crs(3857,4326)
     url = "https://api.camptocamp.org/outings/{}".format(doc_id)
-    print(url)
+    # print(url)
     rep = requests.get(url)
     out = rep.json()
     geom = out['geometry']['geom_detail']
@@ -178,7 +153,7 @@ def get_track_in_bbox_Bikingspots(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_
         lon = float(tr['longitude'])
         if lat > bbox_lat_min and lat < bbox_lat_max and lon > bbox_lon_min and lon < bbox_lon_max : 
             count += 1
-            file_name = os.path.join('gpx',file.replace('.xml','.gpx'))
+            file_name = os.path.join('tracks',file.replace('.xml','.gpx'))
             print('File name :' + file_name)
     
             url_gpx = 'https://www.bikingspots.ch/createGPXFile.php?filename='
@@ -191,6 +166,10 @@ def get_track_in_bbox_Bikingspots(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_
     print(Fore.RED + Style.BRIGHT + 'Bikingspots : {} tracks have been detected in bbox.'.format(count) + Fore.RESET)
 
 def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,options):
+    
+    # Création du dossier pour stocke temporairement les fichiers
+    tracks_folder_path = 'tracks'
+    os.mkdir(tracks_folder_path)
     
     #-----UTAGAWAVTT-----
     if options['utagawavtt'] == "t":
@@ -220,41 +199,42 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
             get_one_track_Tracegps(i)
         
     #-----OPENSTREETMAP-----
-    pass_openstreet_map = False
     if options['openstreetmap'] == "t":
-    #     '''
-    #     Utilise l'api d'openstreet map
-    #     --> gpkg
-    #     '''
-    #     # north, south, east, west
+        '''
+        Utilise l'api d'openstreet map
+        --> gpkg
+        '''
+        # north, south, east, west
         try:
             geometries = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
             
             if geometries.empty:
-                print("Aucune géométrie trouvée dans la bbox.")
+                # print("Aucune géométrie trouvée dans la bbox.")
+                print(Fore.RED + Style.BRIGHT +'Openstreetmap : 0 tracks have been detected in bbox' + Fore.RESET)
                 pass_openstreet_map = True
             else:
                 pass_openstreet_map = False
-                print("Géométries récupérées avec succès !")
+                # print("Géométries récupérées avec succès !")
                 gdf = ox.geometries.geometries_from_bbox(bbox_lat_max, bbox_lat_min, bbox_lon_min, bbox_lon_max, tags={'mtb:scale': True})
                 #gdf.plot()
                 print(Fore.RED + Style.BRIGHT +'Openstreetmap : {} tracks have been detected in bbox'.format(len(gdf)) + Fore.RESET)
         
 
                 del gdf['nodes'] # car c'est une liste et que gpkg ne sait pas gérer les listes
-                gdf.to_file('gpkg//dataframe.gpkg', driver='GPKG', layer='name')
+                gdf.to_file('tracks//dataframe.gpkg', driver='GPKG', layer='name')
                 
         except Exception as e:
             print(f"Erreur lors de la récupération des géométries : {e}")
             return None
+           
         
     #-----KOMOOT-----
-    # if options['komoot'] == "t":
-    #     '''
-    #     URl : https://api.komoot.de/v007/discover_tours/?lat=46.7669&lng=6.6334&max_distance=30000.0&sport=mtb&limit=100&page=0
-    #     Utilise l'api de komoot
-    #     --> json
-    #     '''
+    if options['komoot'] == "t":
+        '''
+        URl : https://api.komoot.de/v007/discover_tours/?lat=46.7669&lng=6.6334&max_distance=30000.0&sport=mtb&limit=100&page=0
+        Utilise l'api de komoot
+        --> json&page=0
+        '''
 
     
     #-----CAMPTOCAMP----
@@ -283,34 +263,17 @@ def task_get_array_from_bbox(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max
         --> gpx
         '''
         get_track_in_bbox_Bikingspots(bbox_lat_min,bbox_lon_min, bbox_lat_max, bbox_lon_max)
-          
-    
-    # ---- GPX ----
-    gpx_folder_path = 'gpx'
-    gpx_files = rz.get_file_names(gpx_folder_path)
-    
-    # ---- GPKG ----
-    gpkg_file = "gpkg\\dataframe.gpkg"
-    
-    # ---- GEOJSON ----
-    geojson_folder_path = 'json'
-    geojson_files = rz.get_file_names(geojson_folder_path)
+        
     
     # ---- Rasterize ----
-    print('bbox')
-    print(bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max)
-    raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max,pass_openstreet_map)
-    # Clear file
-    for filename in os.listdir(gpx_folder_path) :
-        os.remove(gpx_folder_path + '\\' + filename)
-    if pass_openstreet_map != True : 
-        os.remove(gpkg_file)
-    # os.remove(gpkg_file)
+    raster_array = rz.rasterize(tracks_folder_path,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max, pass_openstreet_map)
+    # raster_array = rz.rasterize(gpx_files, gpkg_file, geojson_files,bbox_lon_min,bbox_lat_min,bbox_lon_max,bbox_lat_max, pass_openstreet_map)
+    
+        
+    # Clear folder
+    if os.path.exists(tracks_folder_path) :
+        shutil.rmtree(tracks_folder_path)
         
     
- 
-        
+    
     return raster_array
-
-
-    
